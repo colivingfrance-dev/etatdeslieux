@@ -3,7 +3,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle, AlertCircle, XCircle, Camera, MessageSquare, ChevronLeft, ChevronRight } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { CheckCircle, AlertCircle, XCircle, Camera, MessageSquare, ChevronLeft, ChevronRight, Upload } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 // Import des images
@@ -121,9 +122,18 @@ export default function PropertyInspection() {
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
   const [steps, setSteps] = useState<InspectionStep[]>(inspectionSteps);
   const [currentView, setCurrentView] = useState<'inspection' | 'summary' | 'signature'>('inspection');
+  const [photoDialogOpen, setPhotoDialogOpen] = useState(false);
+  const [selectedItem, setSelectedItem] = useState<{stepId: string, itemId: string} | null>(null);
+  const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const { toast } = useToast();
 
   const updateItemStatus = (stepId: string, itemId: string, status: InspectionItem['status']) => {
+    if (status === 'issue') {
+      setSelectedItem({stepId, itemId});
+      setPhotoDialogOpen(true);
+      return;
+    }
+    
     setSteps(steps.map(step => 
       step.id === stepId ? {
         ...step,
@@ -145,11 +155,66 @@ export default function PropertyInspection() {
     ));
   };
 
-  const addUserPhoto = (stepId: string, itemId: string) => {
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      setUploadedFile(file);
+    }
+  };
+
+  const confirmProblem = () => {
+    if (!selectedItem) return;
+    
+    const currentItem = steps
+      .find(step => step.id === selectedItem.stepId)
+      ?.items.find(item => item.id === selectedItem.itemId);
+    
+    // Vérifier le commentaire obligatoire seulement si on signale un problème
+    if (currentItem?.status !== 'issue' && (!currentItem?.comment || currentItem.comment.trim() === '')) {
+      // Si pas encore marqué comme problème et pas de commentaire, on demande le commentaire
+      setSteps(steps.map(step => 
+        step.id === selectedItem.stepId ? {
+          ...step,
+          items: step.items.map(item => 
+            item.id === selectedItem.itemId ? { 
+              ...item, 
+              status: 'issue',
+              userPhotos: uploadedFile ? [URL.createObjectURL(uploadedFile)] : (item.userPhotos || [])
+            } : item
+          )
+        } : step
+      ));
+      
+      toast({
+        title: "Commentaire obligatoire",
+        description: "Veuillez ajouter un commentaire pour expliquer le problème",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Ajouter la photo avec ou sans problème
+    setSteps(steps.map(step => 
+      step.id === selectedItem.stepId ? {
+        ...step,
+        items: step.items.map(item => 
+          item.id === selectedItem.itemId ? { 
+            ...item, 
+            status: currentItem?.status === 'issue' ? 'issue' : (item.status || 'pending'),
+            userPhotos: uploadedFile ? [...(item.userPhotos || []), URL.createObjectURL(uploadedFile)] : (item.userPhotos || [])
+          } : item
+        )
+      } : step
+    ));
+
     toast({
-      title: "Fonctionnalité à venir",
-      description: "L'ajout de photos sera disponible après connexion à Supabase",
+      title: uploadedFile ? "Photo ajoutée" : "Commentaire enregistré",
+      description: uploadedFile ? "La photo a été ajoutée avec succès" : "Le commentaire a été enregistré"
     });
+
+    setPhotoDialogOpen(false);
+    setSelectedItem(null);
+    setUploadedFile(null);
   };
 
   const getStatusIcon = (status: InspectionItem['status']) => {
@@ -232,6 +297,22 @@ export default function PropertyInspection() {
                               <MessageSquare className="h-4 w-4 inline mr-1" />
                               {item.comment}
                             </p>
+                          </div>
+                        )}
+                        {item.userPhotos && item.userPhotos.length > 0 && (
+                          <div className="space-y-2">
+                            <p className="text-sm font-medium text-card-foreground">Photos du problème :</p>
+                            <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                              {item.userPhotos.map((photo, photoIndex) => (
+                                <div key={photoIndex} className="relative">
+                                  <img 
+                                    src={photo} 
+                                    alt={`Problème ${item.name} - Photo ${photoIndex + 1}`}
+                                    className="w-full h-24 object-cover rounded-lg border-2 border-destructive"
+                                  />
+                                </div>
+                              ))}
+                            </div>
                           </div>
                         )}
                       </div>
@@ -414,7 +495,10 @@ export default function PropertyInspection() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => addUserPhoto(currentStep.id, item.id)}
+                  onClick={() => {
+                    setSelectedItem({stepId: currentStep.id, itemId: item.id});
+                    setPhotoDialogOpen(true);
+                  }}
                   className="w-full"
                 >
                   <Camera className="h-4 w-4 mr-2" />
@@ -425,6 +509,96 @@ export default function PropertyInspection() {
           </Card>
         ))}
       </div>
+
+      {/* Dialog pour signaler un problème */}
+      <Dialog open={photoDialogOpen} onOpenChange={setPhotoDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              {steps.find(step => step.id === selectedItem?.stepId)
+                ?.items.find(item => item.id === selectedItem?.itemId)?.status === 'issue' 
+                ? "Ajouter une photo au problème" 
+                : "Ajouter une photo ou signaler un problème"}
+            </DialogTitle>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium mb-2">
+                Ajouter une photo
+              </label>
+              <div className="border-2 border-dashed border-border rounded-lg p-6 text-center">
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleFileChange}
+                  className="hidden"
+                  id="photo-upload"
+                />
+                <label
+                  htmlFor="photo-upload"
+                  className="cursor-pointer flex flex-col items-center space-y-2"
+                >
+                  <Upload className="h-8 w-8 text-muted-foreground" />
+                  <span className="text-sm text-muted-foreground">
+                    {uploadedFile ? uploadedFile.name : "Cliquez pour ajouter une photo"}
+                  </span>
+                </label>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-2">
+                Commentaire
+                {steps.find(step => step.id === selectedItem?.stepId)
+                  ?.items.find(item => item.id === selectedItem?.itemId)?.status === 'issue' 
+                  && <span className="text-destructive"> *</span>}
+              </label>
+              <Textarea
+                placeholder="Décrivez le problème observé..."
+                value={selectedItem ? 
+                  steps.find(step => step.id === selectedItem.stepId)
+                    ?.items.find(item => item.id === selectedItem.itemId)?.comment || ''
+                  : ''
+                }
+                onChange={(e) => {
+                  if (selectedItem) {
+                    updateItemComment(selectedItem.stepId, selectedItem.itemId, e.target.value);
+                  }
+                }}
+                className="min-h-[100px]"
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                setPhotoDialogOpen(false);
+                setSelectedItem(null);
+                setUploadedFile(null);
+              }}
+            >
+              Annuler
+            </Button>
+            <Button 
+              onClick={confirmProblem}
+              disabled={
+                steps.find(step => step.id === selectedItem?.stepId)
+                  ?.items.find(item => item.id === selectedItem?.itemId)?.status === 'issue' 
+                && (!steps.find(step => step.id === selectedItem?.stepId)
+                      ?.items.find(item => item.id === selectedItem?.itemId)?.comment?.trim())
+              }
+            >
+              {steps.find(step => step.id === selectedItem?.stepId)
+                ?.items.find(item => item.id === selectedItem?.itemId)?.status === 'issue' 
+                ? "Ajouter la photo" 
+                : "Confirmer"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
