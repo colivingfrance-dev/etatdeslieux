@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -6,6 +6,8 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { CheckCircle, AlertCircle, XCircle, Camera, MessageSquare, ChevronLeft, ChevronRight, Upload } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 
 // Import des images
 import chambre1_1 from "@/assets/chambre1-1.jpg";
@@ -119,13 +121,49 @@ const inspectionSteps: InspectionStep[] = [
 ];
 
 export default function PropertyInspection() {
+  const { user } = useAuth();
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
   const [steps, setSteps] = useState<InspectionStep[]>(inspectionSteps);
   const [currentView, setCurrentView] = useState<'inspection' | 'summary' | 'signature'>('inspection');
   const [photoDialogOpen, setPhotoDialogOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<{stepId: string, itemId: string} | null>(null);
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
+  const [inspectionId, setInspectionId] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
   const { toast } = useToast();
+
+  // Créer une nouvelle inspection au démarrage
+  useEffect(() => {
+    if (user && !inspectionId) {
+      createInspection();
+    }
+  }, [user]);
+
+  const createInspection = async () => {
+    if (!user) return;
+    
+    try {
+      const { data, error } = await supabase
+        .from('inspections')
+        .insert({
+          user_id: user.id,
+          property_name: 'Appartement Airbnb',
+          status: 'in_progress'
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+      setInspectionId(data.id);
+    } catch (error) {
+      console.error('Erreur lors de la création de l\'inspection:', error);
+      toast({
+        title: "Erreur",
+        description: "Impossible de créer l'inspection",
+        variant: "destructive"
+      });
+    }
+  };
 
   const updateItemStatus = (stepId: string, itemId: string, status: InspectionItem['status']) => {
     if (status === 'issue') {
@@ -155,6 +193,27 @@ export default function PropertyInspection() {
     ));
   };
 
+  const uploadToStorage = async (file: File, itemName: string) => {
+    if (!user) throw new Error('Utilisateur non connecté');
+    
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
+    const filePath = `${user.id}/${fileName}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from('inspection-photos')
+      .upload(filePath, file);
+
+    if (uploadError) throw uploadError;
+
+    return {
+      filePath,
+      fileName: file.name,
+      fileSize: file.size,
+      mimeType: file.type
+    };
+  };
+
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
@@ -162,59 +221,105 @@ export default function PropertyInspection() {
     }
   };
 
-  const confirmProblem = () => {
-    if (!selectedItem) return;
+  const confirmProblem = async () => {
+    if (!selectedItem || !inspectionId) return;
+    setSaving(true);
     
-    const currentItem = steps
-      .find(step => step.id === selectedItem.stepId)
-      ?.items.find(item => item.id === selectedItem.itemId);
-    
-    // Vérifier le commentaire obligatoire seulement si on signale un problème
-    if (currentItem?.status !== 'issue' && (!currentItem?.comment || currentItem.comment.trim() === '')) {
-      // Si pas encore marqué comme problème et pas de commentaire, on demande le commentaire
+    try {
+      const currentItem = steps
+        .find(step => step.id === selectedItem.stepId)
+        ?.items.find(item => item.id === selectedItem.itemId);
+      
+      const isNewProblem = currentItem?.status !== 'issue';
+      
+      // Vérifier le commentaire obligatoire pour les nouveaux problèmes
+      if (isNewProblem && (!currentItem?.comment || currentItem.comment.trim() === '')) {
+        toast({
+          title: "Commentaire obligatoire",
+          description: "Veuillez ajouter un commentaire pour expliquer le problème",
+          variant: "destructive"
+        });
+        setSaving(false);
+        return;
+      }
+
+      // Créer ou mettre à jour l'élément dans la DB
+      const { data: inspectionItem, error: itemError } = await supabase
+        .from('inspection_items')
+        .upsert({
+          inspection_id: inspectionId,
+          step_id: selectedItem.stepId,
+          item_id: selectedItem.itemId,
+          name: currentItem?.name || '',
+          status: isNewProblem ? 'issue' : currentItem?.status || 'pending',
+          comment: currentItem?.comment || ''
+        }, {
+          onConflict: 'inspection_id,step_id,item_id'
+        })
+        .select()
+        .single();
+
+      if (itemError) throw itemError;
+
+      let photoUrl = null;
+      
+      // Upload de la photo si présente
+      if (uploadedFile && inspectionItem) {
+        const photoData = await uploadToStorage(uploadedFile, currentItem?.name || 'item');
+        
+        const { error: photoError } = await supabase
+          .from('inspection_photos')
+          .insert({
+            inspection_item_id: inspectionItem.id,
+            file_path: photoData.filePath,
+            file_name: photoData.fileName,
+            file_size: photoData.fileSize,
+            mime_type: photoData.mimeType,
+            is_user_photo: true
+          });
+
+        if (photoError) throw photoError;
+
+        // Récupérer l'URL publique de la photo
+        const { data: { publicUrl } } = supabase.storage
+          .from('inspection-photos')
+          .getPublicUrl(photoData.filePath);
+        
+        photoUrl = publicUrl;
+      }
+
+      // Mettre à jour l'état local
       setSteps(steps.map(step => 
         step.id === selectedItem.stepId ? {
           ...step,
           items: step.items.map(item => 
             item.id === selectedItem.itemId ? { 
               ...item, 
-              status: 'issue',
-              userPhotos: uploadedFile ? [URL.createObjectURL(uploadedFile)] : (item.userPhotos || [])
+              status: isNewProblem ? 'issue' : (item.status || 'pending'),
+              userPhotos: photoUrl ? [...(item.userPhotos || []), photoUrl] : (item.userPhotos || [])
             } : item
           )
         } : step
       ));
-      
+
       toast({
-        title: "Commentaire obligatoire",
-        description: "Veuillez ajouter un commentaire pour expliquer le problème",
+        title: uploadedFile ? "Photo ajoutée" : "Commentaire enregistré",
+        description: uploadedFile ? "La photo a été sauvegardée avec succès" : "Le commentaire a été enregistré"
+      });
+
+      setPhotoDialogOpen(false);
+      setSelectedItem(null);
+      setUploadedFile(null);
+    } catch (error) {
+      console.error('Erreur lors de la sauvegarde:', error);
+      toast({
+        title: "Erreur",
+        description: "Impossible de sauvegarder les données",
         variant: "destructive"
       });
-      return;
+    } finally {
+      setSaving(false);
     }
-
-    // Ajouter la photo avec ou sans problème
-    setSteps(steps.map(step => 
-      step.id === selectedItem.stepId ? {
-        ...step,
-        items: step.items.map(item => 
-          item.id === selectedItem.itemId ? { 
-            ...item, 
-            status: currentItem?.status === 'issue' ? 'issue' : (item.status || 'pending'),
-            userPhotos: uploadedFile ? [...(item.userPhotos || []), URL.createObjectURL(uploadedFile)] : (item.userPhotos || [])
-          } : item
-        )
-      } : step
-    ));
-
-    toast({
-      title: uploadedFile ? "Photo ajoutée" : "Commentaire enregistré",
-      description: uploadedFile ? "La photo a été ajoutée avec succès" : "Le commentaire a été enregistré"
-    });
-
-    setPhotoDialogOpen(false);
-    setSelectedItem(null);
-    setUploadedFile(null);
   };
 
   const getStatusIcon = (status: InspectionItem['status']) => {
@@ -584,17 +689,19 @@ export default function PropertyInspection() {
             </Button>
             <Button 
               onClick={confirmProblem}
-              disabled={
+              disabled={saving || (
                 steps.find(step => step.id === selectedItem?.stepId)
                   ?.items.find(item => item.id === selectedItem?.itemId)?.status === 'issue' 
                 && (!steps.find(step => step.id === selectedItem?.stepId)
                       ?.items.find(item => item.id === selectedItem?.itemId)?.comment?.trim())
-              }
+              )}
             >
-              {steps.find(step => step.id === selectedItem?.stepId)
-                ?.items.find(item => item.id === selectedItem?.itemId)?.status === 'issue' 
-                ? "Ajouter la photo" 
-                : "Confirmer"}
+              {saving ? "Sauvegarde..." : (
+                steps.find(step => step.id === selectedItem?.stepId)
+                  ?.items.find(item => item.id === selectedItem?.itemId)?.status === 'issue' 
+                  ? "Ajouter la photo" 
+                  : "Confirmer"
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
