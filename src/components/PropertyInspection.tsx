@@ -561,9 +561,46 @@ export default function PropertyInspection() {
                      />
                    </div>
                  ))}
-              </div>
+               </div>
 
-              {/* Status Buttons */}
+               {/* Affichage des commentaires et photos utilisateur pour les problèmes */}
+               {item.status === 'issue' && (item.comment || (item.userPhotos && item.userPhotos.length > 0)) && (
+                 <div className="mt-4 space-y-3 border-t border-destructive/20 pt-3">
+                   {item.comment && (
+                     <div className="bg-destructive/5 p-3 rounded-lg border border-destructive/20">
+                       <div className="flex items-start gap-2">
+                         <MessageSquare className="h-4 w-4 text-destructive mt-0.5 flex-shrink-0" />
+                         <div>
+                           <p className="text-sm font-medium text-destructive mb-1">Problème signalé :</p>
+                           <p className="text-sm text-card-foreground">{item.comment}</p>
+                         </div>
+                       </div>
+                     </div>
+                   )}
+                   {item.userPhotos && item.userPhotos.length > 0 && (
+                     <div className="space-y-2">
+                       <p className="text-sm font-medium text-destructive flex items-center gap-1">
+                         <Camera className="h-4 w-4" />
+                         Photos du problème :
+                       </p>
+                       <div className="grid grid-cols-3 gap-2">
+                         {item.userPhotos.map((photo, photoIndex) => (
+                           <div key={photoIndex} className="relative">
+                             <img 
+                               src={photo} 
+                               alt={`Problème ${item.name} - Photo ${photoIndex + 1}`}
+                               className="w-full h-20 object-cover rounded-lg border-2 border-destructive cursor-pointer hover:opacity-80 transition-opacity"
+                               onClick={() => setFullscreenImage(photo)}
+                             />
+                           </div>
+                         ))}
+                       </div>
+                     </div>
+                   )}
+                 </div>
+               )}
+
+               {/* Status Buttons */}
               <div className="flex gap-2">
                 <Button
                   variant={item.status === 'ok' ? 'default' : 'outline'}
