@@ -36,7 +36,7 @@ interface InspectionItem {
   photos: string[];
   status: 'pending' | 'ok' | 'issue' | 'na';
   comment?: string;
-  userPhotos?: string[];
+  userPhotos?: Array<{url: string; comment: string}>;
 }
 
 interface InspectionStep {
@@ -128,6 +128,7 @@ export default function PropertyInspection() {
   const [photoDialogOpen, setPhotoDialogOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<{stepId: string, itemId: string} | null>(null);
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
+  const [currentPhotoComment, setCurrentPhotoComment] = useState('');
   const [inspectionId, setInspectionId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [fullscreenImage, setFullscreenImage] = useState<string | null>(null);
@@ -233,11 +234,11 @@ export default function PropertyInspection() {
       
       const isNewProblem = currentItem?.status !== 'issue';
       
-      // Vérifier le commentaire obligatoire pour les nouveaux problèmes
-      if (isNewProblem && (!currentItem?.comment || currentItem.comment.trim() === '')) {
+      // Vérifier qu'il y a au moins une photo ou un commentaire
+      if (!uploadedFile && !currentPhotoComment.trim()) {
         toast({
-          title: "Commentaire obligatoire",
-          description: "Veuillez ajouter un commentaire pour expliquer le problème",
+          title: "Photo ou commentaire requis",
+          description: "Veuillez ajouter une photo ou un commentaire",
           variant: "destructive"
         });
         setSaving(false);
@@ -289,7 +290,7 @@ export default function PropertyInspection() {
         photoUrl = publicUrl;
       }
 
-      // Mettre à jour l'état local
+      // Mettre à jour l'état local avec photo et commentaire individuels
       setSteps(steps.map(step => 
         step.id === selectedItem.stepId ? {
           ...step,
@@ -297,20 +298,24 @@ export default function PropertyInspection() {
             item.id === selectedItem.itemId ? { 
               ...item, 
               status: isNewProblem ? 'issue' : (item.status || 'pending'),
-              userPhotos: photoUrl ? [...(item.userPhotos || []), photoUrl] : (item.userPhotos || [])
+              userPhotos: [...(item.userPhotos || []), {
+                url: photoUrl || '',
+                comment: currentPhotoComment.trim()
+              }].filter(photo => photo.url || photo.comment)
             } : item
           )
         } : step
       ));
 
       toast({
-        title: uploadedFile ? "Photo ajoutée" : "Commentaire enregistré",
-        description: uploadedFile ? "La photo a été sauvegardée avec succès" : "Le commentaire a été enregistré"
+        title: uploadedFile || currentPhotoComment ? "Ajout enregistré" : "Commentaire enregistré",
+        description: "Les informations ont été sauvegardées avec succès"
       });
 
       setPhotoDialogOpen(false);
       setSelectedItem(null);
       setUploadedFile(null);
+      setCurrentPhotoComment('');
     } catch (error) {
       console.error('Erreur lors de la sauvegarde:', error);
       toast({
@@ -359,6 +364,32 @@ export default function PropertyInspection() {
 
   const currentStep = steps[currentStepIndex];
 
+  const validateAllItems = () => {
+    const allItems = getAllItems();
+    const pendingItems = allItems.filter(item => item.status === 'pending');
+    return pendingItems;
+  };
+
+  const scrollToFirstPendingItem = (pendingItems: InspectionItem[]) => {
+    if (pendingItems.length === 0) return;
+    
+    const firstPendingItem = pendingItems[0];
+    const stepWithPendingItem = steps.find(step => 
+      step.items.some(item => item.id === firstPendingItem.id)
+    );
+    
+    if (stepWithPendingItem) {
+      const stepIndex = steps.findIndex(step => step.id === stepWithPendingItem.id);
+      setCurrentStepIndex(stepIndex);
+      
+      toast({
+        title: "Validation incomplète",
+        description: `Veuillez valider l'élément "${firstPendingItem.name}" dans la section "${stepWithPendingItem.title}"`,
+        variant: "destructive"
+      });
+    }
+  };
+
   const nextStep = () => {
     if (currentStepIndex < steps.length - 1) {
       setCurrentStepIndex(currentStepIndex + 1);
@@ -406,17 +437,22 @@ export default function PropertyInspection() {
                           </div>
                         )}
                         {item.userPhotos && item.userPhotos.length > 0 && (
-                          <div className="space-y-2">
-                            <p className="text-sm font-medium text-card-foreground">Photos du problème :</p>
-                            <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                          <div className="space-y-3">
+                            <p className="text-sm font-medium text-card-foreground">Photos et commentaires du problème :</p>
+                            <div className="space-y-3">
                                {item.userPhotos.map((photo, photoIndex) => (
-                                 <div key={photoIndex} className="relative">
-                                   <img 
-                                     src={photo} 
-                                     alt={`Problème ${item.name} - Photo ${photoIndex + 1}`}
-                                     className="w-full h-24 object-cover rounded-lg border-2 border-destructive cursor-pointer hover:opacity-80 transition-opacity"
-                                     onClick={() => setFullscreenImage(photo)}
-                                   />
+                                 <div key={photoIndex} className="border border-destructive/20 rounded-lg p-3 bg-destructive/5">
+                                   {photo.url && (
+                                     <img 
+                                       src={photo.url} 
+                                       alt={`Problème ${item.name} - Photo ${photoIndex + 1}`}
+                                       className="w-full h-32 object-cover rounded-lg border-2 border-destructive cursor-pointer hover:opacity-80 transition-opacity mb-2"
+                                       onClick={() => setFullscreenImage(photo.url)}
+                                     />
+                                   )}
+                                   {photo.comment && (
+                                     <p className="text-sm text-card-foreground italic">"{photo.comment}"</p>
+                                   )}
                                  </div>
                                ))}
                             </div>
@@ -435,7 +471,15 @@ export default function PropertyInspection() {
           <Button variant="outline" onClick={() => setCurrentView('inspection')}>
             Retour à l'inspection
           </Button>
-          <Button onClick={() => setCurrentView('signature')} className="bg-primary text-primary-foreground">
+          <Button onClick={() => {
+            const pendingItems = validateAllItems();
+            if (pendingItems.length > 0) {
+              scrollToFirstPendingItem(pendingItems);
+              setCurrentView('inspection');
+              return;
+            }
+            setCurrentView('signature');
+          }} className="bg-primary text-primary-foreground">
             Procéder à la signature
           </Button>
         </div>
@@ -577,26 +621,31 @@ export default function PropertyInspection() {
                        </div>
                      </div>
                    )}
-                   {item.userPhotos && item.userPhotos.length > 0 && (
-                     <div className="space-y-2">
-                       <p className="text-sm font-medium text-destructive flex items-center gap-1">
-                         <Camera className="h-4 w-4" />
-                         Photos du problème :
-                       </p>
-                       <div className="grid grid-cols-3 gap-2">
-                         {item.userPhotos.map((photo, photoIndex) => (
-                           <div key={photoIndex} className="relative">
-                             <img 
-                               src={photo} 
-                               alt={`Problème ${item.name} - Photo ${photoIndex + 1}`}
-                               className="w-full h-20 object-cover rounded-lg border-2 border-destructive cursor-pointer hover:opacity-80 transition-opacity"
-                               onClick={() => setFullscreenImage(photo)}
-                             />
-                           </div>
-                         ))}
-                       </div>
-                     </div>
-                   )}
+                    {item.userPhotos && item.userPhotos.length > 0 && (
+                      <div className="space-y-3">
+                        <p className="text-sm font-medium text-destructive flex items-center gap-1">
+                          <Camera className="h-4 w-4" />
+                          Photos et commentaires du problème :
+                        </p>
+                        <div className="space-y-2">
+                          {item.userPhotos.map((photo, photoIndex) => (
+                            <div key={photoIndex} className="border border-destructive/20 rounded-lg p-2 bg-destructive/5">
+                              {photo.url && (
+                                <img 
+                                  src={photo.url} 
+                                  alt={`Problème ${item.name} - Photo ${photoIndex + 1}`}
+                                  className="w-full h-20 object-cover rounded-lg border-2 border-destructive cursor-pointer hover:opacity-80 transition-opacity mb-2"
+                                  onClick={() => setFullscreenImage(photo.url)}
+                                />
+                              )}
+                              {photo.comment && (
+                                <p className="text-xs text-card-foreground italic">"{photo.comment}"</p>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                  </div>
                )}
 
@@ -696,23 +745,12 @@ export default function PropertyInspection() {
 
             <div>
               <label className="block text-sm font-medium mb-2">
-                Commentaire
-                {steps.find(step => step.id === selectedItem?.stepId)
-                  ?.items.find(item => item.id === selectedItem?.itemId)?.status === 'issue' 
-                  && <span className="text-destructive"> *</span>}
+                Commentaire pour cette photo
               </label>
               <Textarea
-                placeholder="Décrivez le problème observé..."
-                value={selectedItem ? 
-                  steps.find(step => step.id === selectedItem.stepId)
-                    ?.items.find(item => item.id === selectedItem.itemId)?.comment || ''
-                  : ''
-                }
-                onChange={(e) => {
-                  if (selectedItem) {
-                    updateItemComment(selectedItem.stepId, selectedItem.itemId, e.target.value);
-                  }
-                }}
+                placeholder="Décrivez le problème observé sur cette photo..."
+                value={currentPhotoComment}
+                onChange={(e) => setCurrentPhotoComment(e.target.value)}
                 className="min-h-[100px]"
               />
             </div>
@@ -725,25 +763,16 @@ export default function PropertyInspection() {
                 setPhotoDialogOpen(false);
                 setSelectedItem(null);
                 setUploadedFile(null);
+                setCurrentPhotoComment('');
               }}
             >
               Annuler
             </Button>
             <Button 
               onClick={confirmProblem}
-              disabled={saving || (
-                steps.find(step => step.id === selectedItem?.stepId)
-                  ?.items.find(item => item.id === selectedItem?.itemId)?.status === 'issue' 
-                && (!steps.find(step => step.id === selectedItem?.stepId)
-                      ?.items.find(item => item.id === selectedItem?.itemId)?.comment?.trim())
-              )}
+              disabled={saving || (!uploadedFile && !currentPhotoComment.trim())}
             >
-              {saving ? "Sauvegarde..." : (
-                steps.find(step => step.id === selectedItem?.stepId)
-                  ?.items.find(item => item.id === selectedItem?.itemId)?.status === 'issue' 
-                  ? "Ajouter la photo" 
-                  : "Confirmer"
-              )}
+              {saving ? "Sauvegarde..." : "Ajouter"}
             </Button>
           </DialogFooter>
         </DialogContent>
