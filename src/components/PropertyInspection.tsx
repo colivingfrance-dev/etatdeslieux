@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { CheckCircle, AlertCircle, XCircle, Camera, MessageSquare, ChevronLeft, ChevronRight, Upload } from "lucide-react";
+import { CheckCircle, AlertCircle, XCircle, Camera, MessageSquare, ChevronLeft, ChevronRight, Upload, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -130,6 +130,7 @@ export default function PropertyInspection() {
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [inspectionId, setInspectionId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [fullscreenImage, setFullscreenImage] = useState<string | null>(null);
   const { toast } = useToast();
 
   // Créer une nouvelle inspection au démarrage
@@ -408,15 +409,16 @@ export default function PropertyInspection() {
                           <div className="space-y-2">
                             <p className="text-sm font-medium text-card-foreground">Photos du problème :</p>
                             <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                              {item.userPhotos.map((photo, photoIndex) => (
-                                <div key={photoIndex} className="relative">
-                                  <img 
-                                    src={photo} 
-                                    alt={`Problème ${item.name} - Photo ${photoIndex + 1}`}
-                                    className="w-full h-24 object-cover rounded-lg border-2 border-destructive"
-                                  />
-                                </div>
-                              ))}
+                               {item.userPhotos.map((photo, photoIndex) => (
+                                 <div key={photoIndex} className="relative">
+                                   <img 
+                                     src={photo} 
+                                     alt={`Problème ${item.name} - Photo ${photoIndex + 1}`}
+                                     className="w-full h-24 object-cover rounded-lg border-2 border-destructive cursor-pointer hover:opacity-80 transition-opacity"
+                                     onClick={() => setFullscreenImage(photo)}
+                                   />
+                                 </div>
+                               ))}
                             </div>
                           </div>
                         )}
@@ -481,25 +483,27 @@ export default function PropertyInspection() {
   return (
     <div className="max-w-4xl mx-auto p-6 space-y-6">
       <div className="text-center space-y-2">
-        <h1 className="text-3xl font-bold text-foreground">État des lieux - Airbnb</h1>
+        <h1 className="text-3xl font-bold text-foreground">Etat des lieux - Félicie</h1>
         <p className="text-muted-foreground">Vérifiez chaque élément et validez l'état du logement</p>
       </div>
 
-      {/* Progress Bar */}
-      <Card>
-        <CardContent className="p-4">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-sm font-medium text-card-foreground">Progression globale</span>
-            <span className="text-sm text-muted-foreground">{completedItems}/{totalItems}</span>
-          </div>
-          <div className="w-full bg-muted rounded-full h-2">
-            <div 
-              className="bg-primary h-2 rounded-full transition-all duration-300"
-              style={{ width: `${progressPercentage}%` }}
-            />
-          </div>
-        </CardContent>
-      </Card>
+      {/* Progress Bar - Fixed */}
+      <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-sm border-b border-border pb-4 mb-4">
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm font-medium text-card-foreground">Progression globale</span>
+              <span className="text-sm text-muted-foreground">{completedItems}/{totalItems}</span>
+            </div>
+            <div className="w-full bg-muted rounded-full h-2">
+              <div 
+                className="bg-primary h-2 rounded-full transition-all duration-300"
+                style={{ width: `${progressPercentage}%` }}
+              />
+            </div>
+          </CardContent>
+        </Card>
+      </div>
 
       {/* Step Navigation */}
       <Card>
@@ -547,15 +551,16 @@ export default function PropertyInspection() {
             <CardContent className="space-y-4">
               {/* Photos par défaut */}
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                {item.photos.map((photo, index) => (
-                  <div key={index} className="relative">
-                    <img 
-                      src={photo} 
-                      alt={`${item.name} - Photo ${index + 1}`}
-                      className="w-full h-32 object-cover rounded-lg border border-border"
-                    />
-                  </div>
-                ))}
+                 {item.photos.map((photo, index) => (
+                   <div key={index} className="relative">
+                     <img 
+                       src={photo} 
+                       alt={`${item.name} - Photo ${index + 1}`}
+                       className="w-full h-32 object-cover rounded-lg border border-border cursor-pointer hover:opacity-80 transition-opacity"
+                       onClick={() => setFullscreenImage(photo)}
+                     />
+                   </div>
+                 ))}
               </div>
 
               {/* Status Buttons */}
@@ -704,6 +709,29 @@ export default function PropertyInspection() {
               )}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Fullscreen Image Dialog */}
+      <Dialog open={!!fullscreenImage} onOpenChange={() => setFullscreenImage(null)}>
+        <DialogContent className="max-w-4xl w-full h-[90vh] p-0 bg-black/95">
+          <div className="relative w-full h-full flex items-center justify-center">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="absolute top-4 right-4 z-10 text-white hover:bg-white/20"
+              onClick={() => setFullscreenImage(null)}
+            >
+              <X className="h-6 w-6" />
+            </Button>
+            {fullscreenImage && (
+              <img
+                src={fullscreenImage}
+                alt="Image en plein écran"
+                className="max-w-full max-h-full object-contain"
+              />
+            )}
+          </div>
         </DialogContent>
       </Dialog>
     </div>
