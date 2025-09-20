@@ -657,18 +657,22 @@ export default function PropertyInspection() {
       <div className="grid grid-cols-4 gap-4">
                  {item.photos.map((photo, index) => (
                    <div key={index} className="relative">
-                      <img 
-                        src={photo} 
-                        alt={`${item.name} - Photo ${index + 1}`}
-                        className="w-full h-32 object-cover rounded-lg border border-border cursor-pointer hover:opacity-80 transition-opacity"
-                        onClick={() => {
-                          const allPhotos = [...item.photos, ...(item.userPhotos?.map(p => p.url).filter(Boolean) || [])];
-                          const photoIndex = allPhotos.indexOf(photo);
-                          setAllPhotosForFullscreen(allPhotos);
-                          setFullscreenImageIndex(photoIndex);
-                          setFullscreenImage(photo);
-                        }}
-                      />
+                       <img 
+                         src={photo} 
+                         alt={`${item.name} - Photo ${index + 1}`}
+                         width="188"
+                         height="128"
+                         loading="lazy"
+                         decoding="async"
+                         className="w-full h-32 object-cover rounded-lg border border-border cursor-pointer hover:opacity-80 transition-opacity"
+                         onClick={() => {
+                           const allPhotos = [...item.photos, ...(item.userPhotos?.map(p => p.url).filter(Boolean) || [])];
+                           const photoIndex = allPhotos.indexOf(photo);
+                           setAllPhotosForFullscreen(allPhotos);
+                           setFullscreenImageIndex(photoIndex);
+                           setFullscreenImage(photo);
+                         }}
+                       />
                    </div>
                  ))}
                </div>
@@ -697,18 +701,22 @@ export default function PropertyInspection() {
                            {item.userPhotos.map((photo, photoIndex) => (
                              <div key={photoIndex} className="border border-destructive/20 rounded-lg p-2 bg-destructive/5">
                                {photo.url && (
-                                 <img 
-                                   src={photo.url} 
-                                   alt={`Problème ${item.name} - Photo ${photoIndex + 1}`}
-                                   className="w-full h-32 object-cover rounded-lg border-2 border-destructive cursor-pointer hover:opacity-80 transition-opacity mb-2"
-                                   onClick={() => {
-                                     const allPhotos = [...item.photos, ...(item.userPhotos?.map(p => p.url).filter(Boolean) || [])];
-                                     const photoIndex = allPhotos.indexOf(photo.url);
-                                     setAllPhotosForFullscreen(allPhotos);
-                                     setFullscreenImageIndex(photoIndex);
-                                     setFullscreenImage(photo.url);
-                                   }}
-                                 />
+                                  <img 
+                                    src={photo.url} 
+                                    alt={`Problème ${item.name} - Photo ${photoIndex + 1}`}
+                                    width="188"
+                                    height="128"
+                                    loading="lazy"
+                                    decoding="async"
+                                    className="w-full h-32 object-cover rounded-lg border-2 border-destructive cursor-pointer hover:opacity-80 transition-opacity mb-2"
+                                    onClick={() => {
+                                      const allPhotos = [...item.photos, ...(item.userPhotos?.map(p => p.url).filter(Boolean) || [])];
+                                      const photoIndex = allPhotos.indexOf(photo.url);
+                                      setAllPhotosForFullscreen(allPhotos);
+                                      setFullscreenImageIndex(photoIndex);
+                                      setFullscreenImage(photo.url);
+                                    }}
+                                  />
                                )}
                                {photo.comment && (
                                  <p className="text-xs text-card-foreground italic">"{photo.comment}"</p>
