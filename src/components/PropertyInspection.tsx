@@ -590,7 +590,7 @@ export default function PropertyInspection() {
       </div>
 
       {/* Progress Bar - Fixed */}
-      <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-sm border-b border-border pb-4 mb-4">
+      <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-sm pb-4">
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center justify-between mb-2">
@@ -605,34 +605,35 @@ export default function PropertyInspection() {
             </div>
           </CardContent>
         </Card>
-      </div>
 
-      {/* Step Navigation - Fixed */}
-      <div className="sticky top-20 z-10 bg-background/95 backdrop-blur-sm border-b border-border pb-4 mb-4">
-        <Card>
+        {/* Step Navigation - Integrated */}
+        <Card className="mt-4">
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-4">
                 <span className="text-sm text-muted-foreground">Étape {currentStepIndex + 1} sur {steps.length}</span>
-                <h2 className="text-xl font-semibold text-card-foreground">{currentStep.title}</h2>
+                <h2 className="text-lg sm:text-xl font-semibold text-card-foreground">{currentStep.title}</h2>
               </div>
-              <div className="flex gap-2">
+              <div className="flex gap-1 sm:gap-2">
                 <Button 
                   variant="outline" 
-                  size="sm" 
+                  size="sm"
+                  className="px-2 sm:px-4 text-xs sm:text-sm"
                   onClick={prevStep}
                   disabled={currentStepIndex === 0}
                 >
-                  <ChevronLeft className="h-4 w-4" />
-                  Précédent
+                  <ChevronLeft className="h-3 w-3 sm:h-4 sm:w-4" />
+                  <span className="hidden sm:inline">Précédent</span>
                 </Button>
                 <Button 
                   variant="outline" 
-                  size="sm" 
+                  size="sm"
+                  className="px-2 sm:px-4 text-xs sm:text-sm"
                   onClick={nextStep}
                 >
-                  {currentStepIndex === steps.length - 1 ? 'Terminer' : 'Suivant'}
-                  <ChevronRight className="h-4 w-4" />
+                  <span className="hidden sm:inline">{currentStepIndex === steps.length - 1 ? 'Terminer' : 'Suivant'}</span>
+                  <span className="sm:hidden">{currentStepIndex === steps.length - 1 ? 'Fin' : 'Suiv'}</span>
+                  <ChevronRight className="h-3 w-3 sm:h-4 sm:w-4" />
                 </Button>
               </div>
             </div>
@@ -657,14 +658,14 @@ export default function PropertyInspection() {
       <div className="grid grid-cols-4 gap-4">
                  {item.photos.map((photo, index) => (
                    <div key={index} className="relative">
-                       <img 
-                         src={photo} 
-                         alt={`${item.name} - Photo ${index + 1}`}
-                         width="188"
-                         height="128"
-                         loading="lazy"
-                         decoding="async"
-                         className="w-full h-32 object-cover rounded-lg border border-border cursor-pointer hover:opacity-80 transition-opacity"
+                      <img 
+                        src={photo} 
+                        alt={`${item.name} - Photo ${index + 1}`}
+                        width="188"
+                        height="128"
+                        loading="lazy"
+                        decoding="async"
+                        className="w-full h-32 sm:h-32 aspect-square sm:aspect-auto object-cover rounded-lg border border-border cursor-pointer hover:opacity-80 transition-opacity"
                          onClick={() => {
                            const allPhotos = [...item.photos, ...(item.userPhotos?.map(p => p.url).filter(Boolean) || [])];
                            const photoIndex = allPhotos.indexOf(photo);
@@ -701,14 +702,14 @@ export default function PropertyInspection() {
                            {item.userPhotos.map((photo, photoIndex) => (
                              <div key={photoIndex} className="border border-destructive/20 rounded-lg p-2 bg-destructive/5">
                                {photo.url && (
-                                  <img 
-                                    src={photo.url} 
-                                    alt={`Problème ${item.name} - Photo ${photoIndex + 1}`}
-                                    width="188"
-                                    height="128"
-                                    loading="lazy"
-                                    decoding="async"
-                                    className="w-full h-32 object-cover rounded-lg border-2 border-destructive cursor-pointer hover:opacity-80 transition-opacity mb-2"
+                                 <img 
+                                   src={photo.url} 
+                                   alt={`Problème ${item.name} - Photo ${photoIndex + 1}`}
+                                   width="188"
+                                   height="128"
+                                   loading="lazy"
+                                   decoding="async"
+                                   className="w-full h-32 sm:h-32 aspect-square sm:aspect-auto object-cover rounded-lg border-2 border-destructive cursor-pointer hover:opacity-80 transition-opacity mb-2"
                                     onClick={() => {
                                       const allPhotos = [...item.photos, ...(item.userPhotos?.map(p => p.url).filter(Boolean) || [])];
                                       const photoIndex = allPhotos.indexOf(photo.url);
@@ -862,30 +863,41 @@ export default function PropertyInspection() {
             {/* Navigation arrows */}
             {allPhotosForFullscreen.length > 1 && (
               <>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="absolute left-4 top-1/2 -translate-y-1/2 z-10 text-white hover:bg-white/20"
+                {/* Zone cliquable étendue à gauche */}
+                <div
+                  className="absolute left-0 top-0 w-1/3 h-full z-10 flex items-center justify-start pl-4 cursor-pointer"
                   onClick={() => {
                     const prevIndex = fullscreenImageIndex > 0 ? fullscreenImageIndex - 1 : allPhotosForFullscreen.length - 1;
                     setFullscreenImageIndex(prevIndex);
                     setFullscreenImage(allPhotosForFullscreen[prevIndex]);
                   }}
                 >
-                  <ChevronLeft className="h-8 w-8" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="absolute right-4 top-1/2 -translate-y-1/2 z-10 text-white hover:bg-white/20"
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="text-white hover:bg-white/20 pointer-events-none"
+                  >
+                    <ChevronLeft className="h-8 w-8" />
+                  </Button>
+                </div>
+                
+                {/* Zone cliquable étendue à droite */}
+                <div
+                  className="absolute right-0 top-0 w-1/3 h-full z-10 flex items-center justify-end pr-4 cursor-pointer"
                   onClick={() => {
                     const nextIndex = fullscreenImageIndex < allPhotosForFullscreen.length - 1 ? fullscreenImageIndex + 1 : 0;
                     setFullscreenImageIndex(nextIndex);
                     setFullscreenImage(allPhotosForFullscreen[nextIndex]);
                   }}
                 >
-                  <ChevronRight className="h-8 w-8" />
-                </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="text-white hover:bg-white/20 pointer-events-none"
+                  >
+                    <ChevronRight className="h-8 w-8" />
+                  </Button>
+                </div>
               </>
             )}
             
