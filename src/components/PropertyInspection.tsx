@@ -482,7 +482,7 @@ export default function PropertyInspection() {
                  {item.userPhotos && item.userPhotos.length > 0 && (
                            <div className="space-y-3">
                              <p className="text-sm font-medium text-card-foreground">Photos et commentaires du problème :</p>
-                             <div className="grid grid-cols-2 gap-3">
+                             <div className="grid grid-cols-4 gap-3">
                                 {item.userPhotos.map((photo, photoIndex) => (
                                   <div key={photoIndex} className="border border-destructive/20 rounded-lg p-3 bg-destructive/5">
                                     {photo.url && (
@@ -607,36 +607,38 @@ export default function PropertyInspection() {
         </Card>
       </div>
 
-      {/* Step Navigation */}
-      <Card>
-        <CardContent className="p-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <span className="text-sm text-muted-foreground">Étape {currentStepIndex + 1} sur {steps.length}</span>
-              <h2 className="text-xl font-semibold text-card-foreground">{currentStep.title}</h2>
+      {/* Step Navigation - Fixed */}
+      <div className="sticky top-20 z-10 bg-background/95 backdrop-blur-sm border-b border-border pb-4 mb-4">
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <span className="text-sm text-muted-foreground">Étape {currentStepIndex + 1} sur {steps.length}</span>
+                <h2 className="text-xl font-semibold text-card-foreground">{currentStep.title}</h2>
+              </div>
+              <div className="flex gap-2">
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={prevStep}
+                  disabled={currentStepIndex === 0}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                  Précédent
+                </Button>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={nextStep}
+                >
+                  {currentStepIndex === steps.length - 1 ? 'Terminer' : 'Suivant'}
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
-            <div className="flex gap-2">
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={prevStep}
-                disabled={currentStepIndex === 0}
-              >
-                <ChevronLeft className="h-4 w-4" />
-                Précédent
-              </Button>
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={nextStep}
-              >
-                {currentStepIndex === steps.length - 1 ? 'Terminer' : 'Suivant'}
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      </div>
 
       {/* Current Step Items */}
       <div className="grid gap-6">
@@ -651,8 +653,8 @@ export default function PropertyInspection() {
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
-              {/* Photos par défaut */}
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+      {/* Photos par défaut */}
+      <div className="grid grid-cols-4 gap-4">
                  {item.photos.map((photo, index) => (
                    <div key={index} className="relative">
                       <img 
@@ -691,7 +693,7 @@ export default function PropertyInspection() {
                           <Camera className="h-4 w-4" />
                           Photos et commentaires du problème :
                         </p>
-                         <div className="grid grid-cols-2 gap-3">
+                          <div className="grid grid-cols-4 gap-3">
                            {item.userPhotos.map((photo, photoIndex) => (
                              <div key={photoIndex} className="border border-destructive/20 rounded-lg p-2 bg-destructive/5">
                                {photo.url && (
