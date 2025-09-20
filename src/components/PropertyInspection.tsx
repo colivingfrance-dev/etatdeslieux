@@ -132,6 +132,8 @@ export default function PropertyInspection() {
   const [inspectionId, setInspectionId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [fullscreenImage, setFullscreenImage] = useState<string | null>(null);
+  const [fullscreenImageIndex, setFullscreenImageIndex] = useState(0);
+  const [allPhotosForFullscreen, setAllPhotosForFullscreen] = useState<string[]>([]);
   const { toast } = useToast();
 
   // Créer une nouvelle inspection au démarrage
@@ -436,28 +438,34 @@ export default function PropertyInspection() {
                             </p>
                           </div>
                         )}
-                        {item.userPhotos && item.userPhotos.length > 0 && (
-                          <div className="space-y-3">
-                            <p className="text-sm font-medium text-card-foreground">Photos et commentaires du problème :</p>
-                            <div className="space-y-3">
-                               {item.userPhotos.map((photo, photoIndex) => (
-                                 <div key={photoIndex} className="border border-destructive/20 rounded-lg p-3 bg-destructive/5">
-                                   {photo.url && (
-                                     <img 
-                                       src={photo.url} 
-                                       alt={`Problème ${item.name} - Photo ${photoIndex + 1}`}
-                                       className="w-full h-32 object-cover rounded-lg border-2 border-destructive cursor-pointer hover:opacity-80 transition-opacity mb-2"
-                                       onClick={() => setFullscreenImage(photo.url)}
-                                     />
-                                   )}
-                                   {photo.comment && (
-                                     <p className="text-sm text-card-foreground italic">"{photo.comment}"</p>
-                                   )}
-                                 </div>
-                               ))}
-                            </div>
-                          </div>
-                        )}
+                 {item.userPhotos && item.userPhotos.length > 0 && (
+                           <div className="space-y-3">
+                             <p className="text-sm font-medium text-card-foreground">Photos et commentaires du problème :</p>
+                             <div className="grid grid-cols-2 gap-3">
+                                {item.userPhotos.map((photo, photoIndex) => (
+                                  <div key={photoIndex} className="border border-destructive/20 rounded-lg p-3 bg-destructive/5">
+                                    {photo.url && (
+                                      <img 
+                                        src={photo.url} 
+                                        alt={`Problème ${item.name} - Photo ${photoIndex + 1}`}
+                                        className="w-full h-32 object-cover rounded-lg border-2 border-destructive cursor-pointer hover:opacity-80 transition-opacity mb-2"
+                                        onClick={() => {
+                                          const allPhotos = [...item.photos, ...(item.userPhotos?.map(p => p.url).filter(Boolean) || [])];
+                                          const photoIndex = allPhotos.indexOf(photo.url);
+                                          setAllPhotosForFullscreen(allPhotos);
+                                          setFullscreenImageIndex(photoIndex);
+                                          setFullscreenImage(photo.url);
+                                        }}
+                                      />
+                                    )}
+                                    {photo.comment && (
+                                      <p className="text-sm text-card-foreground italic">"{photo.comment}"</p>
+                                    )}
+                                  </div>
+                                ))}
+                             </div>
+                           </div>
+                         )}
                       </div>
                     </div>
                   </div>
@@ -597,12 +605,18 @@ export default function PropertyInspection() {
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                  {item.photos.map((photo, index) => (
                    <div key={index} className="relative">
-                     <img 
-                       src={photo} 
-                       alt={`${item.name} - Photo ${index + 1}`}
-                       className="w-full h-32 object-cover rounded-lg border border-border cursor-pointer hover:opacity-80 transition-opacity"
-                       onClick={() => setFullscreenImage(photo)}
-                     />
+                      <img 
+                        src={photo} 
+                        alt={`${item.name} - Photo ${index + 1}`}
+                        className="w-full h-32 object-cover rounded-lg border border-border cursor-pointer hover:opacity-80 transition-opacity"
+                        onClick={() => {
+                          const allPhotos = [...item.photos, ...(item.userPhotos?.map(p => p.url).filter(Boolean) || [])];
+                          const photoIndex = allPhotos.indexOf(photo);
+                          setAllPhotosForFullscreen(allPhotos);
+                          setFullscreenImageIndex(photoIndex);
+                          setFullscreenImage(photo);
+                        }}
+                      />
                    </div>
                  ))}
                </div>
@@ -627,23 +641,29 @@ export default function PropertyInspection() {
                           <Camera className="h-4 w-4" />
                           Photos et commentaires du problème :
                         </p>
-                        <div className="space-y-2">
-                          {item.userPhotos.map((photo, photoIndex) => (
-                            <div key={photoIndex} className="border border-destructive/20 rounded-lg p-2 bg-destructive/5">
-                              {photo.url && (
-                                <img 
-                                  src={photo.url} 
-                                  alt={`Problème ${item.name} - Photo ${photoIndex + 1}`}
-                                  className="w-full h-20 object-cover rounded-lg border-2 border-destructive cursor-pointer hover:opacity-80 transition-opacity mb-2"
-                                  onClick={() => setFullscreenImage(photo.url)}
-                                />
-                              )}
-                              {photo.comment && (
-                                <p className="text-xs text-card-foreground italic">"{photo.comment}"</p>
-                              )}
-                            </div>
-                          ))}
-                        </div>
+                         <div className="grid grid-cols-2 gap-3">
+                           {item.userPhotos.map((photo, photoIndex) => (
+                             <div key={photoIndex} className="border border-destructive/20 rounded-lg p-2 bg-destructive/5">
+                               {photo.url && (
+                                 <img 
+                                   src={photo.url} 
+                                   alt={`Problème ${item.name} - Photo ${photoIndex + 1}`}
+                                   className="w-full h-20 object-cover rounded-lg border-2 border-destructive cursor-pointer hover:opacity-80 transition-opacity mb-2"
+                                   onClick={() => {
+                                     const allPhotos = [...item.photos, ...(item.userPhotos?.map(p => p.url).filter(Boolean) || [])];
+                                     const photoIndex = allPhotos.indexOf(photo.url);
+                                     setAllPhotosForFullscreen(allPhotos);
+                                     setFullscreenImageIndex(photoIndex);
+                                     setFullscreenImage(photo.url);
+                                   }}
+                                 />
+                               )}
+                               {photo.comment && (
+                                 <p className="text-xs text-card-foreground italic">"{photo.comment}"</p>
+                               )}
+                             </div>
+                           ))}
+                         </div>
                       </div>
                     )}
                  </div>
@@ -688,18 +708,6 @@ export default function PropertyInspection() {
                   onChange={(e) => updateItemComment(currentStep.id, item.id, e.target.value)}
                   className="min-h-[80px] resize-none"
                 />
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    setSelectedItem({stepId: currentStep.id, itemId: item.id});
-                    setPhotoDialogOpen(true);
-                  }}
-                  className="w-full"
-                >
-                  <Camera className="h-4 w-4 mr-2" />
-                  Ajouter une photo
-                </Button>
               </div>
             </CardContent>
           </Card>
@@ -790,12 +798,50 @@ export default function PropertyInspection() {
             >
               <X className="h-6 w-6" />
             </Button>
+            
+            {/* Navigation arrows */}
+            {allPhotosForFullscreen.length > 1 && (
+              <>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="absolute left-4 top-1/2 -translate-y-1/2 z-10 text-white hover:bg-white/20"
+                  onClick={() => {
+                    const prevIndex = fullscreenImageIndex > 0 ? fullscreenImageIndex - 1 : allPhotosForFullscreen.length - 1;
+                    setFullscreenImageIndex(prevIndex);
+                    setFullscreenImage(allPhotosForFullscreen[prevIndex]);
+                  }}
+                >
+                  <ChevronLeft className="h-8 w-8" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="absolute right-4 top-1/2 -translate-y-1/2 z-10 text-white hover:bg-white/20"
+                  onClick={() => {
+                    const nextIndex = fullscreenImageIndex < allPhotosForFullscreen.length - 1 ? fullscreenImageIndex + 1 : 0;
+                    setFullscreenImageIndex(nextIndex);
+                    setFullscreenImage(allPhotosForFullscreen[nextIndex]);
+                  }}
+                >
+                  <ChevronRight className="h-8 w-8" />
+                </Button>
+              </>
+            )}
+            
             {fullscreenImage && (
               <img
                 src={fullscreenImage}
                 alt="Image en plein écran"
                 className="max-w-full max-h-full object-contain"
               />
+            )}
+            
+            {/* Photo counter */}
+            {allPhotosForFullscreen.length > 1 && (
+              <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-black/60 text-white px-3 py-1 rounded-full text-sm">
+                {fullscreenImageIndex + 1} / {allPhotosForFullscreen.length}
+              </div>
             )}
           </div>
         </DialogContent>
