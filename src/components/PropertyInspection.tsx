@@ -8,6 +8,7 @@ import { CheckCircle, AlertCircle, XCircle, Camera, MessageSquare, ChevronLeft, 
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useNavigate } from "react-router-dom";
 
 // Import des images
 import chambre1_1 from "@/assets/chambre1-1.jpg";
@@ -122,6 +123,7 @@ const inspectionSteps: InspectionStep[] = [
 
 export default function PropertyInspection() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
   const [steps, setSteps] = useState<InspectionStep[]>(inspectionSteps);
   const [currentView, setCurrentView] = useState<'inspection' | 'summary' | 'signature'>('inspection');
@@ -134,6 +136,8 @@ export default function PropertyInspection() {
   const [fullscreenImage, setFullscreenImage] = useState<string | null>(null);
   const [fullscreenImageIndex, setFullscreenImageIndex] = useState(0);
   const [allPhotosForFullscreen, setAllPhotosForFullscreen] = useState<string[]>([]);
+  const [isSignatureSaved, setIsSignatureSaved] = useState(false);
+  const [signingInProgress, setSigningInProgress] = useState(false);
   const { toast } = useToast();
 
   // Créer une nouvelle inspection au démarrage
@@ -330,6 +334,43 @@ export default function PropertyInspection() {
     }
   };
 
+  const handleSignature = async () => {
+    if (!inspectionId || !user) return;
+    
+    setSigningInProgress(true);
+    try {
+      // Mettre à jour le statut de l'inspection à 'completed'
+      const { error } = await supabase
+        .from('inspections')
+        .update({ 
+          status: 'completed',
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', inspectionId);
+
+      if (error) throw error;
+
+      setIsSignatureSaved(true);
+      toast({
+        title: "Signature enregistrée",
+        description: "L'état des lieux a été finalisé avec succès",
+      });
+    } catch (error) {
+      console.error('Erreur lors de la signature:', error);
+      toast({
+        title: "Erreur",
+        description: "Impossible de sauvegarder la signature",
+        variant: "destructive"
+      });
+    } finally {
+      setSigningInProgress(false);
+    }
+  };
+
+  const handleReturnToLogin = () => {
+    navigate('/auth');
+  };
+
   const getStatusIcon = (status: InspectionItem['status']) => {
     switch (status) {
       case 'ok':
@@ -518,14 +559,23 @@ export default function PropertyInspection() {
               <p>Date: {new Date().toLocaleDateString('fr-FR')}</p>
             </div>
 
-            <Button className="w-full bg-primary text-primary-foreground" onClick={() => {
-              toast({
-                title: "Signature enregistrée",
-                description: "L'état des lieux a été finalisé avec succès",
-              });
-            }}>
-              Signer et finaliser
+            <Button 
+              className="w-full bg-primary text-primary-foreground" 
+              onClick={handleSignature}
+              disabled={signingInProgress}
+            >
+              {signingInProgress ? "Signature en cours..." : "Signer et finaliser"}
             </Button>
+            
+            {isSignatureSaved && (
+              <Button 
+                className="w-full mt-4" 
+                variant="outline"
+                onClick={handleReturnToLogin}
+              >
+                Retour à la page de connexion
+              </Button>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -648,7 +698,7 @@ export default function PropertyInspection() {
                                  <img 
                                    src={photo.url} 
                                    alt={`Problème ${item.name} - Photo ${photoIndex + 1}`}
-                                   className="w-full h-20 object-cover rounded-lg border-2 border-destructive cursor-pointer hover:opacity-80 transition-opacity mb-2"
+                                   className="w-full h-32 object-cover rounded-lg border-2 border-destructive cursor-pointer hover:opacity-80 transition-opacity mb-2"
                                    onClick={() => {
                                      const allPhotos = [...item.photos, ...(item.userPhotos?.map(p => p.url).filter(Boolean) || [])];
                                      const photoIndex = allPhotos.indexOf(photo.url);
