@@ -4,11 +4,13 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { CheckCircle, AlertCircle, XCircle, Camera, MessageSquare, ChevronLeft, ChevronRight, Upload, X } from "lucide-react";
+import { CheckCircle, AlertCircle, XCircle, Camera, MessageSquare, ChevronLeft, ChevronRight, Upload, X, Download } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useNavigate } from "react-router-dom";
+import jsPDF from "jspdf";
+import html2canvas from "html2canvas";
 
 // Import des images
 import chambre1_1 from "@/assets/chambre1-1.jpg";
@@ -138,6 +140,8 @@ export default function PropertyInspection() {
   const [allPhotosForFullscreen, setAllPhotosForFullscreen] = useState<string[]>([]);
   const [isSignatureSaved, setIsSignatureSaved] = useState(false);
   const [signingInProgress, setSigningInProgress] = useState(false);
+  const [pdfGenerating, setPdfGenerating] = useState(false);
+  const [reportId, setReportId] = useState<string | null>(null);
   const { toast } = useToast();
 
   // Créer une nouvelle inspection au démarrage
@@ -334,6 +338,143 @@ export default function PropertyInspection() {
     }
   };
 
+  const generatePDF = async () => {
+    if (!inspectionId || !user) return;
+    
+    setPdfGenerating(true);
+    try {
+      // Récupérer la signature du canvas
+      const canvas = document.getElementById('signature-canvas') as HTMLCanvasElement;
+      const signatureData = canvas ? canvas.toDataURL() : '';
+
+      // Créer le PDF avec jsPDF
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      
+      // En-tête
+      pdf.setFontSize(20);
+      pdf.text('État des lieux - Félicie', pageWidth / 2, 20, { align: 'center' });
+      
+      pdf.setFontSize(12);
+      pdf.text(`Date: ${new Date().toLocaleDateString('fr-FR')}`, 20, 35);
+      pdf.text('Appartement Airbnb', 20, 45);
+      
+      let yPosition = 60;
+      
+      // Données de l'inspection
+      for (const step of steps) {
+        if (yPosition > pageHeight - 40) {
+          pdf.addPage();
+          yPosition = 20;
+        }
+        
+        pdf.setFontSize(16);
+        pdf.text(step.title, 20, yPosition);
+        yPosition += 10;
+        
+        for (const item of step.items) {
+          if (yPosition > pageHeight - 30) {
+            pdf.addPage();
+            yPosition = 20;
+          }
+          
+          pdf.setFontSize(12);
+          const statusText = item.status === 'ok' ? 'OK' : 
+                            item.status === 'issue' ? 'PROBLÈME' : 
+                            item.status === 'na' ? 'N/A' : 'À VÉRIFIER';
+          
+          pdf.text(`• ${item.name}: ${statusText}`, 25, yPosition);
+          yPosition += 8;
+          
+          if (item.comment) {
+            pdf.setFontSize(10);
+            const lines = pdf.splitTextToSize(`Commentaire: ${item.comment}`, pageWidth - 40);
+            pdf.text(lines, 30, yPosition);
+            yPosition += lines.length * 4 + 5;
+          }
+          
+          if (item.userPhotos && item.userPhotos.length > 0) {
+            pdf.setFontSize(10);
+            pdf.text(`Photos du problème: ${item.userPhotos.length} photo(s) ajoutée(s)`, 30, yPosition);
+            yPosition += 8;
+          }
+        }
+        yPosition += 5;
+      }
+      
+      // Signature
+      if (yPosition > pageHeight - 60) {
+        pdf.addPage();
+        yPosition = 20;
+      }
+      
+      pdf.setFontSize(14);
+      pdf.text('Signature:', 20, yPosition);
+      yPosition += 15;
+      
+      if (signatureData && signatureData !== 'data:,') {
+        try {
+          pdf.addImage(signatureData, 'PNG', 20, yPosition, 80, 40);
+        } catch (error) {
+          console.warn('Erreur lors de l\'ajout de la signature:', error);
+        }
+      }
+      
+      // Convertir le PDF en blob et le télécharger
+      const pdfBlob = pdf.output('blob');
+      const fileName = `etat_des_lieux_${new Date().toISOString().split('T')[0]}.pdf`;
+      
+      // Stocker le PDF dans Supabase Storage
+      const filePath = `${user.id}/reports/${fileName}`;
+      const { error: uploadError } = await supabase.storage
+        .from('inspection-photos')
+        .upload(filePath, pdfBlob);
+      
+      if (uploadError) throw uploadError;
+      
+      // Enregistrer les métadonnées du rapport dans la DB
+      const { data: report, error: reportError } = await supabase
+        .from('inspection_reports')
+        .insert({
+          inspection_id: inspectionId,
+          file_path: filePath,
+          file_name: fileName,
+          file_size: pdfBlob.size,
+          signature_data: signatureData
+        })
+        .select()
+        .single();
+      
+      if (reportError) throw reportError;
+      
+      setReportId(report.id);
+      
+      // Télécharger le PDF
+      const url = URL.createObjectURL(pdfBlob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = fileName;
+      a.click();
+      URL.revokeObjectURL(url);
+      
+      toast({
+        title: "PDF généré avec succès",
+        description: "Le rapport a été téléchargé et sauvegardé",
+      });
+      
+    } catch (error) {
+      console.error('Erreur lors de la génération du PDF:', error);
+      toast({
+        title: "Erreur",
+        description: "Impossible de générer le PDF",
+        variant: "destructive"
+      });
+    } finally {
+      setPdfGenerating(false);
+    }
+  };
+
   const handleSignature = async () => {
     if (!inspectionId || !user) return;
     
@@ -351,6 +492,10 @@ export default function PropertyInspection() {
       if (error) throw error;
 
       setIsSignatureSaved(true);
+      
+      // Générer le PDF automatiquement après la signature
+      await generatePDF();
+      
       toast({
         title: "Signature enregistrée",
         description: "L'état des lieux a été finalisé avec succès",
@@ -482,7 +627,7 @@ export default function PropertyInspection() {
                  {item.userPhotos && item.userPhotos.length > 0 && (
                            <div className="space-y-3">
                              <p className="text-sm font-medium text-card-foreground">Photos et commentaires du problème :</p>
-                             <div className="grid grid-cols-4 gap-3">
+                             <div className="grid grid-cols-2 gap-3">
                                 {item.userPhotos.map((photo, photoIndex) => (
                                   <div key={photoIndex} className="border border-destructive/20 rounded-lg p-3 bg-destructive/5">
                                     {photo.url && (
@@ -653,19 +798,32 @@ export default function PropertyInspection() {
             <Button 
               className="w-full bg-primary text-primary-foreground" 
               onClick={handleSignature}
-              disabled={signingInProgress}
+              disabled={signingInProgress || pdfGenerating}
             >
-              {signingInProgress ? "Signature en cours..." : "Signer et finaliser"}
+              {signingInProgress ? "Signature en cours..." : pdfGenerating ? "Génération du PDF..." : "Signer et finaliser"}
             </Button>
             
             {isSignatureSaved && (
-              <Button 
-                className="w-full mt-4" 
-                variant="outline"
-                onClick={handleReturnToLogin}
-              >
-                Retour à la page de connexion
-              </Button>
+              <div className="space-y-2">
+                {reportId && (
+                  <Button 
+                    className="w-full" 
+                    variant="outline"
+                    onClick={generatePDF}
+                    disabled={pdfGenerating}
+                  >
+                    <Download className="h-4 w-4 mr-2" />
+                    {pdfGenerating ? "Génération..." : "Télécharger le PDF"}
+                  </Button>
+                )}
+                <Button 
+                  className="w-full" 
+                  variant="outline"
+                  onClick={handleReturnToLogin}
+                >
+                  Retour à la page de connexion
+                </Button>
+              </div>
             )}
           </CardContent>
         </Card>
@@ -789,7 +947,7 @@ export default function PropertyInspection() {
                           <Camera className="h-4 w-4" />
                           Photos et commentaires du problème :
                         </p>
-                           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                           <div className="grid grid-cols-2 gap-3">
                             {item.userPhotos.map((photo, photoIndex) => (
                               <div key={photoIndex} className="border border-destructive/20 rounded-lg p-2 bg-destructive/5">
                                 {photo.url && (
@@ -945,18 +1103,18 @@ export default function PropertyInspection() {
             <Button
               variant="ghost"
               size="icon"
-              className="absolute top-4 right-4 z-20 text-white hover:bg-white/20 h-12 w-12"
+              className="absolute top-4 right-4 z-20 text-white hover:bg-white/20 h-24 w-24"
               onClick={() => setFullscreenImage(null)}
             >
-              <X className="h-8 w-8" />
+              <X className="h-16 w-16" />
             </Button>
             
-            {/* Navigation arrows - zone limitée à l'image */}
+            {/* Navigation arrows - zone étendue jusqu'aux bords */}
             {allPhotosForFullscreen.length > 1 && fullscreenImage && (
               <>
-                {/* Zone cliquable à gauche - limitée à la zone de l'image */}
+                {/* Zone cliquable à gauche - étendue jusqu'au bord gauche */}
                 <div
-                  className="absolute left-1/4 top-1/4 w-1/6 h-1/2 z-10 flex items-center justify-center cursor-pointer"
+                  className="absolute left-0 top-0 w-1/2 h-full z-10 flex items-center justify-start pl-8 cursor-pointer"
                   onClick={() => {
                     const prevIndex = fullscreenImageIndex > 0 ? fullscreenImageIndex - 1 : allPhotosForFullscreen.length - 1;
                     setFullscreenImageIndex(prevIndex);
@@ -966,15 +1124,15 @@ export default function PropertyInspection() {
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="text-white hover:bg-white/20 pointer-events-none"
+                    className="text-white hover:bg-white/20 pointer-events-none h-16 w-16"
                   >
-                    <ChevronLeft className="h-8 w-8" />
+                    <ChevronLeft className="h-16 w-16" />
                   </Button>
                 </div>
                 
-                {/* Zone cliquable à droite - limitée à la zone de l'image */}
+                {/* Zone cliquable à droite - étendue jusqu'au bord droit */}
                 <div
-                  className="absolute right-1/4 top-1/4 w-1/6 h-1/2 z-10 flex items-center justify-center cursor-pointer"
+                  className="absolute right-0 top-0 w-1/2 h-full z-10 flex items-center justify-end pr-8 cursor-pointer"
                   onClick={() => {
                     const nextIndex = fullscreenImageIndex < allPhotosForFullscreen.length - 1 ? fullscreenImageIndex + 1 : 0;
                     setFullscreenImageIndex(nextIndex);
@@ -984,9 +1142,9 @@ export default function PropertyInspection() {
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="text-white hover:bg-white/20 pointer-events-none"
+                    className="text-white hover:bg-white/20 pointer-events-none h-16 w-16"
                   >
-                    <ChevronRight className="h-8 w-8" />
+                    <ChevronRight className="h-16 w-16" />
                   </Button>
                 </div>
               </>

@@ -99,6 +99,44 @@ export type Database = {
           },
         ]
       }
+      inspection_reports: {
+        Row: {
+          created_at: string
+          file_name: string
+          file_path: string
+          file_size: number | null
+          id: string
+          inspection_id: string
+          signature_data: string | null
+        }
+        Insert: {
+          created_at?: string
+          file_name: string
+          file_path: string
+          file_size?: number | null
+          id?: string
+          inspection_id: string
+          signature_data?: string | null
+        }
+        Update: {
+          created_at?: string
+          file_name?: string
+          file_path?: string
+          file_size?: number | null
+          id?: string
+          inspection_id?: string
+          signature_data?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "inspection_reports_inspection_id_fkey"
+            columns: ["inspection_id"]
+            isOneToOne: false
+            referencedRelation: "inspections"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       inspections: {
         Row: {
           created_at: string
