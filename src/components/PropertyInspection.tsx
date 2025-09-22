@@ -546,12 +546,103 @@ export default function PropertyInspection() {
 
         <Card>
           <CardContent className="p-6 space-y-4">
-            <div className="h-48 border-2 border-dashed border-border rounded-lg flex items-center justify-center bg-muted/20">
-              <div className="text-center text-muted-foreground">
-                <MessageSquare className="h-12 w-12 mx-auto mb-2" />
-                <p>Zone de signature</p>
-                <p className="text-sm">(Fonctionnalité disponible après connexion Supabase)</p>
+            <div className="relative">
+              <canvas
+                id="signature-canvas"
+                width="400"
+                height="200"
+                className="w-full h-48 border-2 border-dashed border-border rounded-lg bg-muted/20 cursor-crosshair touch-none"
+                onMouseDown={(e) => {
+                  const canvas = e.currentTarget;
+                  const ctx = canvas.getContext('2d');
+                  if (!ctx) return;
+                  
+                  const rect = canvas.getBoundingClientRect();
+                  const x = (e.clientX - rect.left) * (canvas.width / rect.width);
+                  const y = (e.clientY - rect.top) * (canvas.height / rect.height);
+                  
+                  ctx.beginPath();
+                  ctx.moveTo(x, y);
+                  canvas.setAttribute('data-drawing', 'true');
+                }}
+                onMouseMove={(e) => {
+                  const canvas = e.currentTarget;
+                  const ctx = canvas.getContext('2d');
+                  if (!ctx || canvas.getAttribute('data-drawing') !== 'true') return;
+                  
+                  const rect = canvas.getBoundingClientRect();
+                  const x = (e.clientX - rect.left) * (canvas.width / rect.width);
+                  const y = (e.clientY - rect.top) * (canvas.height / rect.height);
+                  
+                  ctx.lineWidth = 2;
+                  ctx.lineCap = 'round';
+                  ctx.strokeStyle = '#000';
+                  ctx.lineTo(x, y);
+                  ctx.stroke();
+                }}
+                onMouseUp={(e) => {
+                  const canvas = e.currentTarget;
+                  canvas.removeAttribute('data-drawing');
+                }}
+                onTouchStart={(e) => {
+                  e.preventDefault();
+                  const canvas = e.currentTarget;
+                  const ctx = canvas.getContext('2d');
+                  if (!ctx) return;
+                  
+                  const rect = canvas.getBoundingClientRect();
+                  const touch = e.touches[0];
+                  const x = (touch.clientX - rect.left) * (canvas.width / rect.width);
+                  const y = (touch.clientY - rect.top) * (canvas.height / rect.height);
+                  
+                  ctx.beginPath();
+                  ctx.moveTo(x, y);
+                  canvas.setAttribute('data-drawing', 'true');
+                }}
+                onTouchMove={(e) => {
+                  e.preventDefault();
+                  const canvas = e.currentTarget;
+                  const ctx = canvas.getContext('2d');
+                  if (!ctx || canvas.getAttribute('data-drawing') !== 'true') return;
+                  
+                  const rect = canvas.getBoundingClientRect();
+                  const touch = e.touches[0];
+                  const x = (touch.clientX - rect.left) * (canvas.width / rect.width);
+                  const y = (touch.clientY - rect.top) * (canvas.height / rect.height);
+                  
+                  ctx.lineWidth = 2;
+                  ctx.lineCap = 'round';
+                  ctx.strokeStyle = '#000';
+                  ctx.lineTo(x, y);
+                  ctx.stroke();
+                }}
+                onTouchEnd={(e) => {
+                  e.preventDefault();
+                  const canvas = e.currentTarget;
+                  canvas.removeAttribute('data-drawing');
+                }}
+              />
+              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                <div className="text-center text-muted-foreground">
+                  <p className="text-sm">Zone de signature - Dessinez votre signature</p>
+                </div>
               </div>
+              <Button
+                variant="outline"
+                size="sm"
+                className="absolute top-2 right-2"
+                onClick={() => {
+                  const canvas = document.getElementById('signature-canvas') as HTMLCanvasElement;
+                  if (canvas) {
+                    const ctx = canvas.getContext('2d');
+                    if (ctx) {
+                      ctx.clearRect(0, 0, canvas.width, canvas.height);
+                    }
+                  }
+                }}
+              >
+                Effacer
+              </Button>
             </div>
             
             <div className="text-sm text-muted-foreground space-y-2">
@@ -610,11 +701,11 @@ export default function PropertyInspection() {
         <Card className="mt-4">
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <span className="text-sm text-muted-foreground">Étape {currentStepIndex + 1} sur {steps.length}</span>
-                <h2 className="text-lg sm:text-xl font-semibold text-card-foreground">{currentStep.title}</h2>
+              <div className="flex items-center gap-2 sm:gap-4 min-w-0 flex-1">
+                <span className="text-xs sm:text-sm text-muted-foreground whitespace-nowrap">Étape {currentStepIndex + 1}/{steps.length}</span>
+                <h2 className="text-sm sm:text-lg md:text-xl font-semibold text-card-foreground truncate">{currentStep.title}</h2>
               </div>
-              <div className="flex gap-1 sm:gap-2">
+              <div className="flex gap-1 sm:gap-2 flex-shrink-0">
                 <Button 
                   variant="outline" 
                   size="sm"
@@ -632,7 +723,7 @@ export default function PropertyInspection() {
                   onClick={nextStep}
                 >
                   <span className="hidden sm:inline">{currentStepIndex === steps.length - 1 ? 'Terminer' : 'Suivant'}</span>
-                  <span className="sm:hidden">{currentStepIndex === steps.length - 1 ? 'Fin' : 'Suiv'}</span>
+                  <span className="sm:hidden">{currentStepIndex === steps.length - 1 ? 'Fin' : ''}</span>
                   <ChevronRight className="h-3 w-3 sm:h-4 sm:w-4" />
                 </Button>
               </div>
@@ -655,7 +746,7 @@ export default function PropertyInspection() {
             </CardHeader>
             <CardContent className="space-y-4">
       {/* Photos par défaut */}
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                  {item.photos.map((photo, index) => (
                    <div key={index} className="relative">
                       <img 
@@ -698,33 +789,33 @@ export default function PropertyInspection() {
                           <Camera className="h-4 w-4" />
                           Photos et commentaires du problème :
                         </p>
-                          <div className="grid grid-cols-4 gap-3">
-                           {item.userPhotos.map((photo, photoIndex) => (
-                             <div key={photoIndex} className="border border-destructive/20 rounded-lg p-2 bg-destructive/5">
-                               {photo.url && (
-                                 <img 
-                                   src={photo.url} 
-                                   alt={`Problème ${item.name} - Photo ${photoIndex + 1}`}
-                                   width="188"
-                                   height="128"
-                                   loading="lazy"
-                                   decoding="async"
-                                   className="w-full h-32 sm:h-32 aspect-square sm:aspect-auto object-cover rounded-lg border-2 border-destructive cursor-pointer hover:opacity-80 transition-opacity mb-2"
-                                    onClick={() => {
-                                      const allPhotos = [...item.photos, ...(item.userPhotos?.map(p => p.url).filter(Boolean) || [])];
-                                      const photoIndex = allPhotos.indexOf(photo.url);
-                                      setAllPhotosForFullscreen(allPhotos);
-                                      setFullscreenImageIndex(photoIndex);
-                                      setFullscreenImage(photo.url);
-                                    }}
-                                  />
-                               )}
-                               {photo.comment && (
-                                 <p className="text-xs text-card-foreground italic">"{photo.comment}"</p>
-                               )}
-                             </div>
-                           ))}
-                         </div>
+                           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                            {item.userPhotos.map((photo, photoIndex) => (
+                              <div key={photoIndex} className="border border-destructive/20 rounded-lg p-2 bg-destructive/5">
+                                {photo.url && (
+                                  <img 
+                                    src={photo.url} 
+                                    alt={`Problème ${item.name} - Photo ${photoIndex + 1}`}
+                                    width="188"
+                                    height="128"
+                                    loading="lazy"
+                                    decoding="async"
+                                    className="w-full h-32 sm:h-32 aspect-square sm:aspect-auto object-cover rounded-lg border-2 border-destructive cursor-pointer hover:opacity-80 transition-opacity mb-2"
+                                     onClick={() => {
+                                       const allPhotos = [...item.photos, ...(item.userPhotos?.map(p => p.url).filter(Boolean) || [])];
+                                       const photoIndex = allPhotos.indexOf(photo.url);
+                                       setAllPhotosForFullscreen(allPhotos);
+                                       setFullscreenImageIndex(photoIndex);
+                                       setFullscreenImage(photo.url);
+                                     }}
+                                   />
+                                )}
+                                {photo.comment && (
+                                  <p className="text-xs text-card-foreground italic">"{photo.comment}"</p>
+                                )}
+                              </div>
+                            ))}
+                          </div>
                       </div>
                     )}
                  </div>
@@ -854,18 +945,18 @@ export default function PropertyInspection() {
             <Button
               variant="ghost"
               size="icon"
-              className="absolute top-4 right-4 z-10 text-white hover:bg-white/20"
+              className="absolute top-4 right-4 z-20 text-white hover:bg-white/20 h-12 w-12"
               onClick={() => setFullscreenImage(null)}
             >
-              <X className="h-6 w-6" />
+              <X className="h-8 w-8" />
             </Button>
             
-            {/* Navigation arrows */}
-            {allPhotosForFullscreen.length > 1 && (
+            {/* Navigation arrows - zone limitée à l'image */}
+            {allPhotosForFullscreen.length > 1 && fullscreenImage && (
               <>
-                {/* Zone cliquable étendue à gauche */}
+                {/* Zone cliquable à gauche - limitée à la zone de l'image */}
                 <div
-                  className="absolute left-0 top-0 w-1/3 h-full z-10 flex items-center justify-start pl-4 cursor-pointer"
+                  className="absolute left-1/4 top-1/4 w-1/6 h-1/2 z-10 flex items-center justify-center cursor-pointer"
                   onClick={() => {
                     const prevIndex = fullscreenImageIndex > 0 ? fullscreenImageIndex - 1 : allPhotosForFullscreen.length - 1;
                     setFullscreenImageIndex(prevIndex);
@@ -881,9 +972,9 @@ export default function PropertyInspection() {
                   </Button>
                 </div>
                 
-                {/* Zone cliquable étendue à droite */}
+                {/* Zone cliquable à droite - limitée à la zone de l'image */}
                 <div
-                  className="absolute right-0 top-0 w-1/3 h-full z-10 flex items-center justify-end pr-4 cursor-pointer"
+                  className="absolute right-1/4 top-1/4 w-1/6 h-1/2 z-10 flex items-center justify-center cursor-pointer"
                   onClick={() => {
                     const nextIndex = fullscreenImageIndex < allPhotosForFullscreen.length - 1 ? fullscreenImageIndex + 1 : 0;
                     setFullscreenImageIndex(nextIndex);
