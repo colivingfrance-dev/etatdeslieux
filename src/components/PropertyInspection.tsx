@@ -45,6 +45,7 @@ interface InspectionItem {
 interface InspectionStep {
   id: string;
   title: string;
+  description: string;
   items: InspectionItem[];
 }
 
@@ -52,6 +53,7 @@ const inspectionSteps: InspectionStep[] = [
   {
     id: 'chambre1',
     title: 'Chambre 1',
+    description: 'Chambre de 16 m2 avec sol parquet, mur en bois de mélèzes, 2 fenêtres. Mobilier : Lit double bois, 2 tables de nuits, 2 lampes de chevet, 1 armoire penderie en chêne',
     items: [
       {
         id: 'chambre1-main',
@@ -63,7 +65,8 @@ const inspectionSteps: InspectionStep[] = [
   },
   {
     id: 'chambre2',
-    title: 'Chambre 2', 
+    title: 'Chambre 2',
+    description: 'Chambre de 16 m2 avec sol parquet, mur en bois de mélèzes, 2 fenêtres. Mobilier : Lit double bois, 2 tables de nuits, 2 lampes de chevet, 1 armoire penderie en chêne',
     items: [
       {
         id: 'chambre2-main',
@@ -76,6 +79,7 @@ const inspectionSteps: InspectionStep[] = [
   {
     id: 'cuisine',
     title: 'Cuisine',
+    description: 'Chambre de 16 m2 avec sol parquet, mur en bois de mélèzes, 2 fenêtres. Mobilier : Lit double bois, 2 tables de nuits, 2 lampes de chevet, 1 armoire penderie en chêne',
     items: [
       {
         id: 'cuisine-meubles',
@@ -106,6 +110,7 @@ const inspectionSteps: InspectionStep[] = [
   {
     id: 'salon',
     title: 'Salon',
+    description: 'Chambre de 16 m2 avec sol parquet, mur en bois de mélèzes, 2 fenêtres. Mobilier : Lit double bois, 2 tables de nuits, 2 lampes de chevet, 1 armoire penderie en chêne',
     items: [
       {
         id: 'salon-tv',
@@ -347,17 +352,27 @@ export default function PropertyInspection() {
       const canvas = document.getElementById('signature-canvas') as HTMLCanvasElement;
       const signatureData = canvas ? canvas.toDataURL() : '';
 
-      // Créer le PDF avec jsPDF
+      // Créer un conteneur temporaire pour le rendu HTML
+      const tempContainer = document.createElement('div');
+      tempContainer.style.position = 'absolute';
+      tempContainer.style.top = '-9999px';
+      tempContainer.style.left = '-9999px';
+      tempContainer.style.width = '800px';
+      tempContainer.style.backgroundColor = '#f1f5f9'; // bg-muted
+      tempContainer.style.padding = '24px';
+      tempContainer.style.fontFamily = 'Arial, sans-serif';
+      document.body.appendChild(tempContainer);
+
+      // Créer le PDF
       const pdf = new jsPDF('p', 'mm', 'a4');
       const pageWidth = pdf.internal.pageSize.getWidth();
       const pageHeight = pdf.internal.pageSize.getHeight();
       
-      // En-tête - Titre principal
+      // Page de titre
       pdf.setFontSize(24);
       pdf.setFont('helvetica', 'bold');
-      pdf.text('État des lieux : Félicie', pageWidth / 2, 25, { align: 'center' });
+      pdf.text('État des lieux : Félicie', pageWidth / 2, 30, { align: 'center' });
       
-      // Sous-titre avec date et email
       pdf.setFontSize(12);
       pdf.setFont('helvetica', 'normal');
       const signatureDate = new Date().toLocaleDateString('fr-FR', {
@@ -368,153 +383,168 @@ export default function PropertyInspection() {
         hour: '2-digit',
         minute: '2-digit'
       });
-      pdf.text(`Date de signature : ${signatureDate}`, pageWidth / 2, 35, { align: 'center' });
-      pdf.text(`Créé par : ${user.email}`, pageWidth / 2, 42, { align: 'center' });
+      pdf.text(`Date de signature : ${signatureDate}`, pageWidth / 2, 40, { align: 'center' });
+      pdf.text(`Créé par : ${user.email}`, pageWidth / 2, 47, { align: 'center' });
       
-      let yPosition = 60;
-      
-      // Données de l'inspection - Style récapitulatif
-      for (const step of steps) {
-        // Vérifier l'espace disponible pour le titre de section
-        if (yPosition > pageHeight - 50) {
-          pdf.addPage();
-          yPosition = 20;
-        }
-        
-        // Titre de section avec ligne de séparation
-        pdf.setFontSize(18);
-        pdf.setFont('helvetica', 'bold');
-        pdf.text(step.title, 20, yPosition);
-        pdf.setDrawColor(59, 130, 246); // couleur primary
-        pdf.line(20, yPosition + 2, pageWidth - 20, yPosition + 2);
-        yPosition += 15;
-        
-        for (const item of step.items) {
-          // Vérifier l'espace pour chaque item
-          if (yPosition > pageHeight - 40) {
-            pdf.addPage();
-            yPosition = 20;
-          }
-          
-          // Nom de l'item avec statut
-          pdf.setFontSize(14);
-          pdf.setFont('helvetica', 'bold');
-          pdf.text(item.name, 25, yPosition);
-          
-          // Badge de statut
-          const statusText = item.status === 'ok' ? 'OK' : 
-                            item.status === 'issue' ? 'PROBLÈME' : 
-                            item.status === 'na' ? 'N/A' : 'À VÉRIFIER';
-          const statusColor = item.status === 'ok' ? [34, 197, 94] : 
-                             item.status === 'issue' ? [239, 68, 68] : 
-                             item.status === 'na' ? [156, 163, 175] : [245, 158, 11];
-          
-          const statusWidth = pdf.getTextWidth(statusText) + 6;
-          pdf.setFillColor(statusColor[0], statusColor[1], statusColor[2]);
-          pdf.roundedRect(pageWidth - 25 - statusWidth, yPosition - 5, statusWidth, 8, 2, 2, 'F');
-          pdf.setTextColor(255, 255, 255);
-          pdf.setFontSize(10);
-          pdf.text(statusText, pageWidth - 22 - statusWidth / 2, yPosition, { align: 'center' });
-          pdf.setTextColor(0, 0, 0); // Reset color
-          
-          yPosition += 12;
-          
-          // Commentaire si présent
-          if (item.comment) {
-            pdf.setFontSize(11);
-            pdf.setFont('helvetica', 'italic');
-            pdf.setFillColor(245, 245, 245);
-            
-            const commentLines = pdf.splitTextToSize(`💬 ${item.comment}`, pageWidth - 60);
-            const commentHeight = commentLines.length * 5 + 6;
-            pdf.roundedRect(30, yPosition - 2, pageWidth - 60, commentHeight, 2, 2, 'F');
-            pdf.text(commentLines, 35, yPosition + 3);
-            yPosition += commentHeight + 5;
-          }
-          
-          // Photos des problèmes - affichage en 2 colonnes comme dans le récapitulatif
-          if (item.userPhotos && item.userPhotos.length > 0) {
-            pdf.setFontSize(11);
-            pdf.setFont('helvetica', 'bold');
-            pdf.text(`📷 Photos du problème (${item.userPhotos.length}) :`, 30, yPosition);
-            yPosition += 8;
-            
-            // Affichage des photos en 2 colonnes
-            const photoWidth = (pageWidth - 80) / 2;
-            const photoHeight = 25;
-            let photoX = 35;
-            let photoCount = 0;
-            
-            for (const photo of item.userPhotos) {
-              if (yPosition + photoHeight + 15 > pageHeight - 20) {
-                pdf.addPage();
-                yPosition = 20;
-                photoX = 35;
-                photoCount = 0;
-              }
-              
-              try {
-                if (photo.url) {
-                  // Dessiner un rectangle pour représenter la photo
-                  pdf.setDrawColor(239, 68, 68);
-                  pdf.setLineWidth(1);
-                  pdf.rect(photoX, yPosition, photoWidth - 5, photoHeight);
-                  
-                  // Texte indicatif de la photo
-                  pdf.setFontSize(9);
-                  pdf.setFont('helvetica', 'normal');
-                  pdf.text(`Photo ${photoCount + 1}`, photoX + 2, yPosition + 5);
-                  
-                  // Commentaire de la photo
-                  if (photo.comment) {
-                    const photoCommentLines = pdf.splitTextToSize(`"${photo.comment}"`, photoWidth - 10);
-                    pdf.text(photoCommentLines, photoX + 2, yPosition + 10);
-                  }
-                }
-              } catch (error) {
-                console.warn('Erreur lors de l\'ajout de la photo:', error);
-              }
-              
-              photoCount++;
-              if (photoCount % 2 === 0) {
-                // Passer à la ligne suivante après 2 photos
-                yPosition += photoHeight + 5;
-                photoX = 35;
-              } else {
-                // Passer à la colonne suivante
-                photoX += photoWidth + 5;
-              }
-            }
-            
-            // Ajuster yPosition si nombre impair de photos
-            if (item.userPhotos.length % 2 !== 0) {
-              yPosition += photoHeight + 5;
-            }
-          }
-          
-          yPosition += 8;
-        }
-        yPosition += 10;
-      }
-      
-      // Signature
-      if (yPosition > pageHeight - 80) {
+      // Générer une page pour chaque étape
+      for (let stepIndex = 0; stepIndex < steps.length; stepIndex++) {
+        const step = steps[stepIndex];
         pdf.addPage();
-        yPosition = 20;
+        
+        // Créer le HTML de la page d'inventaire
+        tempContainer.innerHTML = `
+          <div style="background: #f1f5f9; min-height: 100vh; font-family: Arial, sans-serif;">
+            <!-- En-tête -->
+            <div style="text-align: center; margin-bottom: 24px;">
+              <h1 style="font-size: 32px; font-weight: bold; color: #0f172a; margin-bottom: 8px;">État des lieux - Félicie</h1>
+              <p style="color: #64748b; font-size: 16px;">Vérifiez chaque élément et validez l'état du logement</p>
+            </div>
+
+            <!-- Barre de progression -->
+            <div style="background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin-bottom: 16px;">
+              <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                <span style="font-weight: 500; color: #0f172a;">Progression globale</span>
+                <span style="color: #64748b;">${Math.round((steps.reduce((acc, s) => acc + s.items.filter(i => i.status !== 'pending').length, 0) / steps.reduce((acc, s) => acc + s.items.length, 0)) * 100)}%</span>
+              </div>
+              <div style="background: #e2e8f0; border-radius: 4px; height: 8px;">
+                <div style="background: #3b82f6; height: 8px; border-radius: 4px; width: ${Math.round((steps.reduce((acc, s) => acc + s.items.filter(i => i.status !== 'pending').length, 0) / steps.reduce((acc, s) => acc + s.items.length, 0)) * 100)}%;"></div>
+              </div>
+            </div>
+
+            <!-- Navigation d'étape -->
+            <div style="background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin-bottom: 16px;">
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                  <span style="color: #64748b; font-size: 14px;">Étape ${stepIndex + 1}/${steps.length}</span>
+                  <h2 style="font-size: 24px; font-weight: 600; color: #0f172a; margin: 0;">${step.title}</h2>
+                </div>
+              </div>
+            </div>
+
+            <!-- Description de la pièce -->
+            <div style="background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin-bottom: 24px;">
+              <div style="background: white; padding: 0;">
+                <div style="color: #64748b; font-size: 14px; line-height: 1.5; min-height: 80px; padding: 12px 0;">
+                  ${step.description}
+                </div>
+              </div>
+            </div>
+
+            <!-- Éléments de l'étape -->
+            <div style="display: grid; gap: 24px;">
+              ${step.items.map(item => `
+                <div style="background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px;">
+                  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                    <h3 style="font-size: 18px; font-weight: 600; color: #0f172a; margin: 0;">${item.name}</h3>
+                    <span style="
+                      padding: 4px 12px; 
+                      border-radius: 9999px; 
+                      font-size: 12px; 
+                      font-weight: 600;
+                      ${item.status === 'ok' ? 'background: #dcfce7; color: #166534;' :
+                        item.status === 'issue' ? 'background: #fecaca; color: #991b1b;' :
+                        item.status === 'na' ? 'background: #e5e7eb; color: #374151;' :
+                        'background: #fef3c7; color: #92400e;'}
+                    ">
+                      ${item.status === 'ok' ? 'Bon état' :
+                        item.status === 'issue' ? 'Problème' :
+                        item.status === 'na' ? 'N/A' : 'À vérifier'}
+                    </span>
+                  </div>
+                  
+                  <!-- Photos originales -->
+                  <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-bottom: 16px;">
+                    ${item.photos.slice(0, 4).map(photo => `
+                      <img src="${photo}" style="width: 100%; height: 120px; object-fit: cover; border-radius: 4px;" />
+                    `).join('')}
+                  </div>
+
+                  <!-- Photos de problèmes -->
+                  ${item.userPhotos && item.userPhotos.length > 0 ? `
+                    <div style="margin-bottom: 16px;">
+                      <h4 style="font-size: 14px; font-weight: 600; color: #0f172a; margin-bottom: 8px;">
+                        📷 Photos du problème (${item.userPhotos.length})
+                      </h4>
+                      <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px;">
+                        ${item.userPhotos.map(photo => `
+                          <div style="position: relative;">
+                            ${photo.url ? `<img src="${photo.url}" style="width: 100%; height: 120px; object-fit: cover; border-radius: 4px; border: 2px solid #dc2626;" />` : ''}
+                            ${photo.comment ? `<div style="background: #fef2f2; border: 1px solid #fecaca; border-radius: 4px; padding: 8px; margin-top: 4px;">
+                              <p style="font-size: 12px; color: #991b1b; margin: 0; font-style: italic;">${photo.comment}</p>
+                            </div>` : ''}
+                          </div>
+                        `).join('')}
+                      </div>
+                    </div>
+                  ` : ''}
+
+                  <!-- Commentaire -->
+                  ${item.comment ? `
+                    <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 4px; padding: 12px;">
+                      <div style="color: #64748b; font-size: 14px; line-height: 1.5;">
+                        ${item.comment}
+                      </div>
+                    </div>
+                  ` : ''}
+                </div>
+              `).join('')}
+            </div>
+          </div>
+        `;
+
+        // Capturer la page avec html2canvas
+        const canvasElement = await html2canvas(tempContainer, {
+          width: 800,
+          height: 1200,
+          scale: 1,
+          useCORS: true,
+          allowTaint: true,
+          backgroundColor: '#f1f5f9'
+        });
+
+        // Ajouter l'image au PDF
+        const imgData = canvasElement.toDataURL('image/png');
+        const imgWidth = pageWidth - 20;
+        const imgHeight = (canvasElement.height * imgWidth) / canvasElement.width;
+        
+        // Si l'image est trop haute, la redimensionner
+        let finalHeight = imgHeight;
+        if (imgHeight > pageHeight - 20) {
+          finalHeight = pageHeight - 20;
+        }
+        
+        pdf.addImage(imgData, 'PNG', 10, 10, imgWidth, finalHeight);
+
+        // Ajouter un trait de séparation entre les pages (sauf pour la dernière)
+        if (stepIndex < steps.length - 1) {
+          pdf.setDrawColor(0, 0, 0);
+          pdf.setLineWidth(0.2);
+          pdf.line(10, pageHeight - 5, pageWidth - 10, pageHeight - 5);
+        }
       }
       
-      pdf.setFontSize(16);
+      // Page de signature
+      pdf.addPage();
+      pdf.setFontSize(20);
       pdf.setFont('helvetica', 'bold');
-      pdf.text('Signature électronique', 20, yPosition);
-      yPosition += 15;
+      pdf.text('Signature électronique', pageWidth / 2, 30, { align: 'center' });
       
       if (signatureData && signatureData !== 'data:,') {
         try {
-          pdf.addImage(signatureData, 'PNG', 20, yPosition, 100, 50);
+          pdf.addImage(signatureData, 'PNG', (pageWidth - 100) / 2, 50, 100, 50);
         } catch (error) {
           console.warn('Erreur lors de l\'ajout de la signature:', error);
         }
       }
+      
+      pdf.setFontSize(12);
+      pdf.setFont('helvetica', 'normal');
+      pdf.text(`Date de signature : ${signatureDate}`, pageWidth / 2, 120, { align: 'center' });
+      pdf.text('En signant ce document, je confirme avoir vérifié l\'état du logement', pageWidth / 2, 135, { align: 'center' });
+      pdf.text('et accepte les constats effectués.', pageWidth / 2, 142, { align: 'center' });
+
+      // Nettoyer le conteneur temporaire
+      document.body.removeChild(tempContainer);
       
       // Convertir le PDF en blob
       const pdfBlob = pdf.output('blob');
@@ -989,6 +1019,17 @@ export default function PropertyInspection() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Description de la pièce */}
+      <Card className="bg-background border-border">
+        <CardContent className="p-4">
+          <Textarea
+            value={currentStep.description}
+            readOnly
+            className="min-h-[80px] resize-none bg-background border-0 shadow-none p-0 text-muted-foreground"
+          />
+        </CardContent>
+      </Card>
 
       {/* Current Step Items */}
       <div className="grid gap-6">
