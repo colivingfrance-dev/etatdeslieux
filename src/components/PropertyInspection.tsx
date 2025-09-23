@@ -352,84 +352,184 @@ export default function PropertyInspection() {
       const pageWidth = pdf.internal.pageSize.getWidth();
       const pageHeight = pdf.internal.pageSize.getHeight();
       
-      // En-tête
-      pdf.setFontSize(20);
-      pdf.text('État des lieux - Félicie', pageWidth / 2, 20, { align: 'center' });
+      // En-tête - Titre principal
+      pdf.setFontSize(24);
+      pdf.setFont('helvetica', 'bold');
+      pdf.text('État des lieux : Félicie', pageWidth / 2, 25, { align: 'center' });
       
+      // Sous-titre avec date et email
       pdf.setFontSize(12);
-      pdf.text(`Date: ${new Date().toLocaleDateString('fr-FR')}`, 20, 35);
-      pdf.text('Appartement Airbnb', 20, 45);
+      pdf.setFont('helvetica', 'normal');
+      const signatureDate = new Date().toLocaleDateString('fr-FR', {
+        weekday: 'long',
+        year: 'numeric', 
+        month: 'long', 
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+      pdf.text(`Date de signature : ${signatureDate}`, pageWidth / 2, 35, { align: 'center' });
+      pdf.text(`Créé par : ${user.email}`, pageWidth / 2, 42, { align: 'center' });
       
       let yPosition = 60;
       
-      // Données de l'inspection
+      // Données de l'inspection - Style récapitulatif
       for (const step of steps) {
-        if (yPosition > pageHeight - 40) {
+        // Vérifier l'espace disponible pour le titre de section
+        if (yPosition > pageHeight - 50) {
           pdf.addPage();
           yPosition = 20;
         }
         
-        pdf.setFontSize(16);
+        // Titre de section avec ligne de séparation
+        pdf.setFontSize(18);
+        pdf.setFont('helvetica', 'bold');
         pdf.text(step.title, 20, yPosition);
-        yPosition += 10;
+        pdf.setDrawColor(59, 130, 246); // couleur primary
+        pdf.line(20, yPosition + 2, pageWidth - 20, yPosition + 2);
+        yPosition += 15;
         
         for (const item of step.items) {
-          if (yPosition > pageHeight - 30) {
+          // Vérifier l'espace pour chaque item
+          if (yPosition > pageHeight - 40) {
             pdf.addPage();
             yPosition = 20;
           }
           
-          pdf.setFontSize(12);
+          // Nom de l'item avec statut
+          pdf.setFontSize(14);
+          pdf.setFont('helvetica', 'bold');
+          pdf.text(item.name, 25, yPosition);
+          
+          // Badge de statut
           const statusText = item.status === 'ok' ? 'OK' : 
                             item.status === 'issue' ? 'PROBLÈME' : 
                             item.status === 'na' ? 'N/A' : 'À VÉRIFIER';
+          const statusColor = item.status === 'ok' ? [34, 197, 94] : 
+                             item.status === 'issue' ? [239, 68, 68] : 
+                             item.status === 'na' ? [156, 163, 175] : [245, 158, 11];
           
-          pdf.text(`• ${item.name}: ${statusText}`, 25, yPosition);
-          yPosition += 8;
+          const statusWidth = pdf.getTextWidth(statusText) + 6;
+          pdf.setFillColor(statusColor[0], statusColor[1], statusColor[2]);
+          pdf.roundedRect(pageWidth - 25 - statusWidth, yPosition - 5, statusWidth, 8, 2, 2, 'F');
+          pdf.setTextColor(255, 255, 255);
+          pdf.setFontSize(10);
+          pdf.text(statusText, pageWidth - 22 - statusWidth / 2, yPosition, { align: 'center' });
+          pdf.setTextColor(0, 0, 0); // Reset color
           
+          yPosition += 12;
+          
+          // Commentaire si présent
           if (item.comment) {
-            pdf.setFontSize(10);
-            const lines = pdf.splitTextToSize(`Commentaire: ${item.comment}`, pageWidth - 40);
-            pdf.text(lines, 30, yPosition);
-            yPosition += lines.length * 4 + 5;
+            pdf.setFontSize(11);
+            pdf.setFont('helvetica', 'italic');
+            pdf.setFillColor(245, 245, 245);
+            
+            const commentLines = pdf.splitTextToSize(`💬 ${item.comment}`, pageWidth - 60);
+            const commentHeight = commentLines.length * 5 + 6;
+            pdf.roundedRect(30, yPosition - 2, pageWidth - 60, commentHeight, 2, 2, 'F');
+            pdf.text(commentLines, 35, yPosition + 3);
+            yPosition += commentHeight + 5;
           }
           
+          // Photos des problèmes - affichage en 2 colonnes comme dans le récapitulatif
           if (item.userPhotos && item.userPhotos.length > 0) {
-            pdf.setFontSize(10);
-            pdf.text(`Photos du problème: ${item.userPhotos.length} photo(s) ajoutée(s)`, 30, yPosition);
+            pdf.setFontSize(11);
+            pdf.setFont('helvetica', 'bold');
+            pdf.text(`📷 Photos du problème (${item.userPhotos.length}) :`, 30, yPosition);
             yPosition += 8;
+            
+            // Affichage des photos en 2 colonnes
+            const photoWidth = (pageWidth - 80) / 2;
+            const photoHeight = 25;
+            let photoX = 35;
+            let photoCount = 0;
+            
+            for (const photo of item.userPhotos) {
+              if (yPosition + photoHeight + 15 > pageHeight - 20) {
+                pdf.addPage();
+                yPosition = 20;
+                photoX = 35;
+                photoCount = 0;
+              }
+              
+              try {
+                if (photo.url) {
+                  // Dessiner un rectangle pour représenter la photo
+                  pdf.setDrawColor(239, 68, 68);
+                  pdf.setLineWidth(1);
+                  pdf.rect(photoX, yPosition, photoWidth - 5, photoHeight);
+                  
+                  // Texte indicatif de la photo
+                  pdf.setFontSize(9);
+                  pdf.setFont('helvetica', 'normal');
+                  pdf.text(`Photo ${photoCount + 1}`, photoX + 2, yPosition + 5);
+                  
+                  // Commentaire de la photo
+                  if (photo.comment) {
+                    const photoCommentLines = pdf.splitTextToSize(`"${photo.comment}"`, photoWidth - 10);
+                    pdf.text(photoCommentLines, photoX + 2, yPosition + 10);
+                  }
+                }
+              } catch (error) {
+                console.warn('Erreur lors de l\'ajout de la photo:', error);
+              }
+              
+              photoCount++;
+              if (photoCount % 2 === 0) {
+                // Passer à la ligne suivante après 2 photos
+                yPosition += photoHeight + 5;
+                photoX = 35;
+              } else {
+                // Passer à la colonne suivante
+                photoX += photoWidth + 5;
+              }
+            }
+            
+            // Ajuster yPosition si nombre impair de photos
+            if (item.userPhotos.length % 2 !== 0) {
+              yPosition += photoHeight + 5;
+            }
           }
+          
+          yPosition += 8;
         }
-        yPosition += 5;
+        yPosition += 10;
       }
       
       // Signature
-      if (yPosition > pageHeight - 60) {
+      if (yPosition > pageHeight - 80) {
         pdf.addPage();
         yPosition = 20;
       }
       
-      pdf.setFontSize(14);
-      pdf.text('Signature:', 20, yPosition);
+      pdf.setFontSize(16);
+      pdf.setFont('helvetica', 'bold');
+      pdf.text('Signature électronique', 20, yPosition);
       yPosition += 15;
       
       if (signatureData && signatureData !== 'data:,') {
         try {
-          pdf.addImage(signatureData, 'PNG', 20, yPosition, 80, 40);
+          pdf.addImage(signatureData, 'PNG', 20, yPosition, 100, 50);
         } catch (error) {
           console.warn('Erreur lors de l\'ajout de la signature:', error);
         }
       }
       
-      // Convertir le PDF en blob et le télécharger
+      // Convertir le PDF en blob
       const pdfBlob = pdf.output('blob');
-      const fileName = `etat_des_lieux_${new Date().toISOString().split('T')[0]}.pdf`;
       
-      // Stocker le PDF dans Supabase Storage
+      // Générer un nom de fichier unique avec timestamp pour éviter les conflits
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+      const fileName = `etat_des_lieux_felicie_${timestamp}.pdf`;
+      
+      // Stocker le PDF dans Supabase Storage avec l'option upsert pour éviter l'erreur
       const filePath = `${user.id}/reports/${fileName}`;
       const { error: uploadError } = await supabase.storage
         .from('inspection-photos')
-        .upload(filePath, pdfBlob);
+        .upload(filePath, pdfBlob, {
+          upsert: true // Permet d'écraser le fichier s'il existe
+        });
       
       if (uploadError) throw uploadError;
       
