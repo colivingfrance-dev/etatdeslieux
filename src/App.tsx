@@ -7,11 +7,13 @@ import { useAuth } from "@/hooks/useAuth";
 import Auth from "@/pages/Auth";
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
+import SuperAdminDashboard from "./pages/SuperAdminDashboard";
+import AdminDashboard from "./pages/AdminDashboard";
 
 const queryClient = new QueryClient();
 
 const AppContent = () => {
-  const { isAuthenticated, loading } = useAuth();
+  const { isAuthenticated, loading, isSuperAdmin, isAdmin, isClient } = useAuth();
 
   if (loading) {
     return (
@@ -28,6 +30,28 @@ const AppContent = () => {
     return <Auth />;
   }
 
+  // Route based on user role
+  if (isSuperAdmin) {
+    return (
+      <Routes>
+        <Route path="/" element={<SuperAdminDashboard />} />
+        <Route path="/auth" element={<Auth />} />
+        <Route path="*" element={<NotFound />} />
+      </Routes>
+    );
+  }
+
+  if (isAdmin) {
+    return (
+      <Routes>
+        <Route path="/" element={<AdminDashboard />} />
+        <Route path="/auth" element={<Auth />} />
+        <Route path="*" element={<NotFound />} />
+      </Routes>
+    );
+  }
+
+  // Client routes
   return (
     <Routes>
       <Route path="/" element={<Index />} />
