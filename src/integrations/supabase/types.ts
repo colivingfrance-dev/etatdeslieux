@@ -14,6 +14,33 @@ export type Database = {
   }
   public: {
     Tables: {
+      admin_profiles: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          max_locations: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          max_locations?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          max_locations?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       inspection_items: {
         Row: {
           comment: string | null
@@ -139,6 +166,7 @@ export type Database = {
       }
       inspections: {
         Row: {
+          admin_id: string | null
           created_at: string
           id: string
           inspection_date: string
@@ -148,6 +176,7 @@ export type Database = {
           user_id: string | null
         }
         Insert: {
+          admin_id?: string | null
           created_at?: string
           id?: string
           inspection_date?: string
@@ -157,6 +186,7 @@ export type Database = {
           user_id?: string | null
         }
         Update: {
+          admin_id?: string | null
           created_at?: string
           id?: string
           inspection_date?: string
@@ -167,15 +197,134 @@ export type Database = {
         }
         Relationships: []
       }
+      locataires: {
+        Row: {
+          adresse_cp: string | null
+          adresse_pays: string | null
+          adresse_rue: string | null
+          adresse_ville: string | null
+          bail_path: string | null
+          caution_path: string | null
+          created_at: string
+          created_by: string
+          date_entree: string | null
+          date_naissance: string | null
+          date_sortie: string | null
+          email: string | null
+          etat_des_lieux_path: string | null
+          etat_des_lieux_sortie_path: string | null
+          id: number
+          id_locataire: string
+          identite_path: string | null
+          lieu_naissance: string | null
+          nom: string
+          nom_batiment: string | null
+          nom_logement: string | null
+          prenom: string
+          reglement_path: string | null
+          tel: string | null
+          updated_at: string
+        }
+        Insert: {
+          adresse_cp?: string | null
+          adresse_pays?: string | null
+          adresse_rue?: string | null
+          adresse_ville?: string | null
+          bail_path?: string | null
+          caution_path?: string | null
+          created_at?: string
+          created_by: string
+          date_entree?: string | null
+          date_naissance?: string | null
+          date_sortie?: string | null
+          email?: string | null
+          etat_des_lieux_path?: string | null
+          etat_des_lieux_sortie_path?: string | null
+          id?: number
+          id_locataire: string
+          identite_path?: string | null
+          lieu_naissance?: string | null
+          nom: string
+          nom_batiment?: string | null
+          nom_logement?: string | null
+          prenom: string
+          reglement_path?: string | null
+          tel?: string | null
+          updated_at?: string
+        }
+        Update: {
+          adresse_cp?: string | null
+          adresse_pays?: string | null
+          adresse_rue?: string | null
+          adresse_ville?: string | null
+          bail_path?: string | null
+          caution_path?: string | null
+          created_at?: string
+          created_by?: string
+          date_entree?: string | null
+          date_naissance?: string | null
+          date_sortie?: string | null
+          email?: string | null
+          etat_des_lieux_path?: string | null
+          etat_des_lieux_sortie_path?: string | null
+          id?: number
+          id_locataire?: string
+          identite_path?: string | null
+          lieu_naissance?: string | null
+          nom?: string
+          nom_batiment?: string | null
+          nom_logement?: string | null
+          prenom?: string
+          reglement_path?: string | null
+          tel?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      user_roles: {
+        Row: {
+          created_at: string
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      count_admin_locations: {
+        Args: { _admin_id: string }
+        Returns: number
+      }
+      get_user_role: {
+        Args: { _user_id: string }
+        Returns: Database["public"]["Enums"]["app_role"]
+      }
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "superadmin" | "admin" | "client"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -302,6 +451,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["superadmin", "admin", "client"],
+    },
   },
 } as const
