@@ -7,6 +7,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { Users, Building, LogOut } from 'lucide-react';
+import { CreateLocationDialog } from '@/components/CreateLocationDialog';
+import { CreateClientDialog } from '@/components/CreateClientDialog';
+import { CreatePropertyDialog } from '@/components/CreatePropertyDialog';
 
 type Property = {
   id: string;
@@ -100,6 +103,13 @@ export default function AdminDashboard() {
       </header>
 
       <main className="container mx-auto px-4 py-8 space-y-8">
+        {/* Action Buttons */}
+        <div className="flex gap-4 flex-wrap">
+          <CreateLocationDialog onLocationCreated={loadData} />
+          <CreateClientDialog onClientCreated={loadData} />
+          <CreatePropertyDialog onPropertyCreated={loadData} />
+        </div>
+
         {/* Quota Card */}
         <Card>
           <CardHeader>

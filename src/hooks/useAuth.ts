@@ -58,6 +58,8 @@ export function useAuth() {
 
   const signOut = async () => {
     await supabase.auth.signOut();
+    // Forcer le rechargement de la page pour réinitialiser l'état
+    window.location.href = '/auth';
   };
 
   return {
