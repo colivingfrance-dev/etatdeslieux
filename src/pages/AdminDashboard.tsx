@@ -105,9 +105,9 @@ export default function AdminDashboard() {
       <main className="container mx-auto px-4 py-8 space-y-8">
         {/* Action Buttons */}
         <div className="flex gap-4 flex-wrap">
-          <CreateLocationDialog onLocationCreated={loadData} />
-          <CreateClientDialog onClientCreated={loadData} />
           <CreatePropertyDialog onPropertyCreated={loadData} />
+          <CreateClientDialog onClientCreated={loadData} />
+          <CreateLocationDialog onLocationCreated={loadData} />
         </div>
 
         {/* Quota Card */}

@@ -322,6 +322,14 @@ export type Database = {
         }
         Returns: boolean
       }
+      setup_user_with_role: {
+        Args: {
+          p_max_locations?: number
+          p_role: Database["public"]["Enums"]["app_role"]
+          p_user_id: string
+        }
+        Returns: undefined
+      }
     }
     Enums: {
       app_role: "superadmin" | "admin" | "client"
