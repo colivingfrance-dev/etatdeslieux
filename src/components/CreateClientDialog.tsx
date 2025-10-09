@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,44 +14,28 @@ export function CreateClientDialog({ onClientCreated }: { onClientCreated?: () =
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
   const { user, userRole } = useAuth();
-  const [properties, setProperties] = useState<any[]>([]);
 
   const [formData, setFormData] = useState({
     nom: '',
     prenom: '',
     email: '',
-    password: '',
     tel: '',
     dateNaissance: '',
     lieuNaissance: '',
     role: 'client' as 'superadmin' | 'admin' | 'client',
-    assignedProperties: [] as string[],
+    password: '',
+    maxLocations: '5',
   });
-
-  useEffect(() => {
-    if (open) {
-      loadProperties();
-    }
-  }, [open]);
-
-  const loadProperties = async () => {
-    const { data } = await supabase
-      .from('inspections')
-      .select('id, property_name')
-      .order('created_at', { ascending: false });
-    
-    if (data) setProperties(data);
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
 
-    // Vérification des permissions
-    if (formData.role === 'superadmin' && userRole !== 'superadmin') {
+    // Vérifier que seuls les superadmins peuvent créer des superadmins ou admins
+    if (userRole !== 'superadmin' && (formData.role === 'superadmin' || formData.role === 'admin')) {
       toast({
         title: 'Erreur',
-        description: 'Seul un superadmin peut créer des comptes superadmin',
+        description: 'Seul un superadmin peut créer des comptes admin ou superadmin',
         variant: 'destructive'
       });
       return;
@@ -59,50 +43,48 @@ export function CreateClientDialog({ onClientCreated }: { onClientCreated?: () =
     
     setLoading(true);
     try {
-      // Créer le compte utilisateur dans Supabase Auth
+      // 1. Créer le compte utilisateur via Supabase Auth
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: formData.email,
         password: formData.password,
         options: {
           data: {
-            nom: formData.nom,
-            prenom: formData.prenom
+            first_name: formData.prenom,
+            last_name: formData.nom,
           }
         }
       });
 
       if (authError) throw authError;
-      if (!authData.user) throw new Error('Échec de la création du compte');
+      if (!authData.user) throw new Error('Utilisateur non créé');
 
       const newUserId = authData.user.id;
 
-      // Créer le rôle de l'utilisateur
+      // 2. Créer le rôle dans user_roles
       const { error: roleError } = await supabase
         .from('user_roles')
         .insert({
           user_id: newUserId,
-          role: formData.role
+          role: formData.role,
         });
 
       if (roleError) throw roleError;
 
-      // Si c'est un admin, créer le profil admin
+      // 3. Si c'est un admin, créer le profil admin
       if (formData.role === 'admin') {
-        const { error: adminError } = await supabase
+        const { error: profileError } = await supabase
           .from('admin_profiles')
           .insert({
             user_id: newUserId,
-            max_locations: 5,
-            created_by: user.id
+            max_locations: parseInt(formData.maxLocations),
+            created_by: user.id,
           });
 
-        if (adminError) throw adminError;
+        if (profileError) throw profileError;
       }
 
-      // Générer un ID unique pour le locataire
+      // 4. Créer l'entrée dans locataires
       const idLocataire = `CLI-${Date.now()}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
-
-      // Insérer dans la table locataires
       const { error: locataireError } = await supabase
         .from('locataires')
         .insert({
@@ -118,18 +100,8 @@ export function CreateClientDialog({ onClientCreated }: { onClientCreated?: () =
 
       if (locataireError) throw locataireError;
 
-      // Si des biens sont assignés, mettre à jour les inspections
-      if (formData.assignedProperties.length > 0) {
-        const { error: updateError } = await supabase
-          .from('inspections')
-          .update({ user_id: newUserId })
-          .in('id', formData.assignedProperties);
-
-        if (updateError) throw updateError;
-      }
-
       toast({
-        title: 'Client créé',
+        title: 'Utilisateur créé',
         description: `Le compte ${formData.role} a été créé avec succès`
       });
 
@@ -138,20 +110,20 @@ export function CreateClientDialog({ onClientCreated }: { onClientCreated?: () =
         nom: '',
         prenom: '',
         email: '',
-        password: '',
         tel: '',
         dateNaissance: '',
         lieuNaissance: '',
         role: 'client',
-        assignedProperties: [],
+        password: '',
+        maxLocations: '5',
       });
       
       if (onClientCreated) onClientCreated();
     } catch (error: any) {
-      console.error('Error creating client:', error);
+      console.error('Error creating user:', error);
       toast({
         title: 'Erreur',
-        description: error.message || 'Impossible de créer le client',
+        description: error.message || 'Impossible de créer l\'utilisateur',
         variant: 'destructive'
       });
     } finally {
@@ -167,11 +139,11 @@ export function CreateClientDialog({ onClientCreated }: { onClientCreated?: () =
           Nouveau Client
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Créer un nouveau client</DialogTitle>
+          <DialogTitle>Créer un nouvel utilisateur</DialogTitle>
           <DialogDescription>
-            Renseignez les informations du client
+            Renseignez les informations de l'utilisateur et ses droits
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -223,20 +195,35 @@ export function CreateClientDialog({ onClientCreated }: { onClientCreated?: () =
             <Label htmlFor="role">Rôle *</Label>
             <Select
               value={formData.role}
-              onValueChange={(value: any) => setFormData(prev => ({ ...prev, role: value }))}
+              onValueChange={(value) => setFormData(prev => ({ ...prev, role: value as any }))}
             >
               <SelectTrigger>
-                <SelectValue />
+                <SelectValue placeholder="Sélectionner un rôle" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="client">Client</SelectItem>
-                <SelectItem value="admin">Admin</SelectItem>
                 {userRole === 'superadmin' && (
-                  <SelectItem value="superadmin">SuperAdmin</SelectItem>
+                  <>
+                    <SelectItem value="admin">Admin</SelectItem>
+                    <SelectItem value="superadmin">SuperAdmin</SelectItem>
+                  </>
                 )}
               </SelectContent>
             </Select>
           </div>
+
+          {formData.role === 'admin' && (
+            <div className="space-y-2">
+              <Label htmlFor="maxLocations">Nombre max de locations</Label>
+              <Input
+                id="maxLocations"
+                type="number"
+                min="1"
+                value={formData.maxLocations}
+                onChange={(e) => setFormData(prev => ({ ...prev, maxLocations: e.target.value }))}
+              />
+            </div>
+          )}
 
           <div className="space-y-2">
             <Label htmlFor="tel">Téléphone</Label>
@@ -267,37 +254,6 @@ export function CreateClientDialog({ onClientCreated }: { onClientCreated?: () =
               />
             </div>
           </div>
-
-          {formData.role === 'client' && properties.length > 0 && (
-            <div className="space-y-2">
-              <Label>Attribuer des biens immobiliers</Label>
-              <div className="border rounded-md p-3 max-h-40 overflow-y-auto space-y-2">
-                {properties.map((property) => (
-                  <label key={property.id} className="flex items-center space-x-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={formData.assignedProperties.includes(property.id)}
-                      onChange={(e) => {
-                        if (e.target.checked) {
-                          setFormData(prev => ({
-                            ...prev,
-                            assignedProperties: [...prev.assignedProperties, property.id]
-                          }));
-                        } else {
-                          setFormData(prev => ({
-                            ...prev,
-                            assignedProperties: prev.assignedProperties.filter(id => id !== property.id)
-                          }));
-                        }
-                      }}
-                      className="rounded border-gray-300"
-                    />
-                    <span className="text-sm">{property.property_name}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-          )}
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setOpen(false)}>
