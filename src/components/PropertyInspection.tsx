@@ -169,16 +169,19 @@ export default function PropertyInspection() {
 
       const userRole = roleData?.role;
       
-      // Préparer les données d'insertion
+      // Préparer les données d'insertion selon le rôle
       const inspectionData: any = {
-        user_id: user.id,
         property_name: 'Appartement Airbnb',
         status: 'in_progress'
       };
 
-      // Si l'utilisateur est admin ou superadmin, définir admin_id
+      // Si l'utilisateur est admin ou superadmin, définir admin_id et laisser user_id null
       if (userRole === 'admin' || userRole === 'superadmin') {
         inspectionData.admin_id = user.id;
+        inspectionData.user_id = null;
+      } else {
+        // Pour les clients, définir user_id
+        inspectionData.user_id = user.id;
       }
 
       const { data, error } = await supabase
