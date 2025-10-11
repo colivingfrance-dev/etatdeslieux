@@ -191,7 +191,7 @@ export default function SuperAdminDashboard() {
               <TableBody>
                 {admins.map((admin) => (
                   <TableRow key={admin.id}>
-                    <TableCell className="font-mono text-sm">{admin.id.substring(0, 8)}...</TableCell>
+                    <TableCell className="font-mono text-sm">{admin.id?.substring(0, 8) || 'N/A'}...</TableCell>
                     <TableCell>{admin.current_locations}</TableCell>
                     <TableCell>{admin.max_locations}</TableCell>
                     <TableCell>
@@ -225,7 +225,7 @@ export default function SuperAdminDashboard() {
                 {properties.map((property) => (
                   <TableRow key={property.id}>
                     <TableCell className="font-medium">{property.property_name}</TableCell>
-                    <TableCell className="font-mono text-sm">{property.user_id.substring(0, 8)}...</TableCell>
+                    <TableCell className="font-mono text-sm">{property.user_id?.substring(0, 8) || 'N/A'}...</TableCell>
                     <TableCell className="font-mono text-sm">
                       {property.admin_id ? `${property.admin_id.substring(0, 8)}...` : 'Non assigné'}
                     </TableCell>

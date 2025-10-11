@@ -180,7 +180,7 @@ export default function AdminDashboard() {
                 {properties.map((property) => (
                   <TableRow key={property.id}>
                     <TableCell className="font-medium">{property.property_name}</TableCell>
-                    <TableCell className="font-mono text-sm">{property.user_id.substring(0, 8)}...</TableCell>
+                    <TableCell className="font-mono text-sm">{property.user_id?.substring(0, 8) || 'N/A'}...</TableCell>
                     <TableCell>
                       <Badge variant={property.status === 'completed' ? 'default' : 'secondary'}>
                         {property.status === 'completed' ? 'Terminé' : 'En cours'}
