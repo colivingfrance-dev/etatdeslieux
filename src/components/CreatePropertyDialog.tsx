@@ -28,13 +28,10 @@ export function CreatePropertyDialog({ onPropertyCreated }: { onPropertyCreated?
     setLoading(true);
     try {
       // Get user role to determine if admin_id should be set
-      const { data: roleData } = await supabase
-        .from('user_roles')
-        .select('role')
-        .eq('user_id', user.id)
-        .single();
-
-      const userRole = roleData?.role;
+      const { data: userRole, error: roleFetchError } = await supabase.rpc('get_user_role', { _user_id: user.id });
+      if (roleFetchError) {
+        console.warn('Failed to fetch user role via RPC:', roleFetchError);
+      }
       
       // Prepare inspection data
       const inspectionData: any = {
