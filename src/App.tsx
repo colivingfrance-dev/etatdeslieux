@@ -9,6 +9,8 @@ import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 import SuperAdminDashboard from "./pages/SuperAdminDashboard";
 import AdminDashboard from "./pages/AdminDashboard";
+import ModelesEDL from "./pages/ModelesEDL";
+import EditModeleEDL from "./pages/EditModeleEDL";
 
 const queryClient = new QueryClient();
 
@@ -35,6 +37,8 @@ const AppContent = () => {
     return (
       <Routes>
         <Route path="/" element={<SuperAdminDashboard />} />
+        <Route path="/modeles-edl" element={<ModelesEDL />} />
+        <Route path="/modeles-edl/edit/:id" element={<EditModeleEDL />} />
         <Route path="/auth" element={<Navigate to="/" replace />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
@@ -45,6 +49,8 @@ const AppContent = () => {
     return (
       <Routes>
         <Route path="/" element={<AdminDashboard />} />
+        <Route path="/modeles-edl" element={<ModelesEDL />} />
+        <Route path="/modeles-edl/edit/:id" element={<EditModeleEDL />} />
         <Route path="/auth" element={<Navigate to="/" replace />} />
         <Route path="*" element={<NotFound />} />
       </Routes>

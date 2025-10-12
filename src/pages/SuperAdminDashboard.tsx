@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
-import { Users, Building, LogOut, Settings } from 'lucide-react';
+import { Users, Building, LogOut, Settings, FileText } from 'lucide-react';
 import { CreateLocationDialog } from '@/components/CreateLocationDialog';
 import { CreateClientDialog } from '@/components/CreateClientDialog';
 import { CreatePropertyDialog } from '@/components/CreatePropertyDialog';
@@ -131,6 +131,10 @@ export default function SuperAdminDashboard() {
           <CreatePropertyDialog onPropertyCreated={loadData} />
           <CreateClientDialog onClientCreated={loadData} />
           <CreateLocationDialog onLocationCreated={loadData} />
+          <Button variant="outline" onClick={() => window.location.href = '/modeles-edl'}>
+            <FileText className="mr-2 h-4 w-4" />
+            Modèles État des Lieux
+          </Button>
         </div>
 
         {/* Stats */}

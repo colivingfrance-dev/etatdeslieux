@@ -41,6 +41,114 @@ export type Database = {
         }
         Relationships: []
       }
+      edl_etapes: {
+        Row: {
+          commentaire: string | null
+          created_at: string
+          id: string
+          modele_id: string
+          nom: string
+          ordre: number
+          updated_at: string
+        }
+        Insert: {
+          commentaire?: string | null
+          created_at?: string
+          id?: string
+          modele_id: string
+          nom: string
+          ordre?: number
+          updated_at?: string
+        }
+        Update: {
+          commentaire?: string | null
+          created_at?: string
+          id?: string
+          modele_id?: string
+          nom?: string
+          ordre?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "edl_etapes_modele_id_fkey"
+            columns: ["modele_id"]
+            isOneToOne: false
+            referencedRelation: "modele_etats_des_lieux"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      edl_photos: {
+        Row: {
+          commentaire: string | null
+          created_at: string
+          file_name: string
+          file_path: string
+          id: string
+          piece_id: string
+        }
+        Insert: {
+          commentaire?: string | null
+          created_at?: string
+          file_name: string
+          file_path: string
+          id?: string
+          piece_id: string
+        }
+        Update: {
+          commentaire?: string | null
+          created_at?: string
+          file_name?: string
+          file_path?: string
+          id?: string
+          piece_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "edl_photos_piece_id_fkey"
+            columns: ["piece_id"]
+            isOneToOne: false
+            referencedRelation: "edl_pieces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      edl_pieces: {
+        Row: {
+          commentaire: string | null
+          created_at: string
+          etape_id: string
+          id: string
+          nom: string
+          updated_at: string
+        }
+        Insert: {
+          commentaire?: string | null
+          created_at?: string
+          etape_id: string
+          id?: string
+          nom: string
+          updated_at?: string
+        }
+        Update: {
+          commentaire?: string | null
+          created_at?: string
+          etape_id?: string
+          id?: string
+          nom?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "edl_pieces_etape_id_fkey"
+            columns: ["etape_id"]
+            isOneToOne: false
+            referencedRelation: "edl_etapes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       inspection_items: {
         Row: {
           comment: string | null
@@ -277,6 +385,36 @@ export type Database = {
           prenom?: string
           reglement_path?: string | null
           tel?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      modele_etats_des_lieux: {
+        Row: {
+          created_at: string
+          created_by: string
+          description: string | null
+          id: string
+          nom: string
+          property_name: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          description?: string | null
+          id?: string
+          nom: string
+          property_name: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          id?: string
+          nom?: string
+          property_name?: string
           updated_at?: string
         }
         Relationships: []
