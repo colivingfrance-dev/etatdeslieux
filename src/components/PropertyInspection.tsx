@@ -1,10 +1,16 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle, AlertCircle, XCircle, Camera, MessageSquare, ChevronLeft, ChevronRight } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { CheckCircle, AlertCircle, XCircle, Camera, MessageSquare, ChevronLeft, ChevronRight, Upload, X, Download } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
+import { useNavigate } from "react-router-dom";
+import jsPDF from "jspdf";
+import html2canvas from "html2canvas";
 
 // Import des images
 import chambre1_1 from "@/assets/chambre1-1.jpg";
@@ -33,12 +39,13 @@ interface InspectionItem {
   photos: string[];
   status: 'pending' | 'ok' | 'issue' | 'na';
   comment?: string;
-  userPhotos?: string[];
+  userPhotos?: Array<{url: string; comment: string}>;
 }
 
 interface InspectionStep {
   id: string;
   title: string;
+  description: string;
   items: InspectionItem[];
 }
 
@@ -46,6 +53,7 @@ const inspectionSteps: InspectionStep[] = [
   {
     id: 'chambre1',
     title: 'Chambre 1',
+    description: 'Chambre de 16 m2 avec sol parquet, mur en bois de mélèzes, 2 fenêtres. Mobilier : Lit double bois, 2 tables de nuits, 2 lampes de chevet, 1 armoire penderie en chêne',
     items: [
       {
         id: 'chambre1-main',
@@ -57,7 +65,8 @@ const inspectionSteps: InspectionStep[] = [
   },
   {
     id: 'chambre2',
-    title: 'Chambre 2', 
+    title: 'Chambre 2',
+    description: 'Chambre de 16 m2 avec sol parquet, mur en bois de mélèzes, 2 fenêtres. Mobilier : Lit double bois, 2 tables de nuits, 2 lampes de chevet, 1 armoire penderie en chêne',
     items: [
       {
         id: 'chambre2-main',
@@ -70,6 +79,7 @@ const inspectionSteps: InspectionStep[] = [
   {
     id: 'cuisine',
     title: 'Cuisine',
+    description: 'Chambre de 16 m2 avec sol parquet, mur en bois de mélèzes, 2 fenêtres. Mobilier : Lit double bois, 2 tables de nuits, 2 lampes de chevet, 1 armoire penderie en chêne',
     items: [
       {
         id: 'cuisine-meubles',
@@ -100,6 +110,7 @@ const inspectionSteps: InspectionStep[] = [
   {
     id: 'salon',
     title: 'Salon',
+    description: 'Chambre de 16 m2 avec sol parquet, mur en bois de mélèzes, 2 fenêtres. Mobilier : Lit double bois, 2 tables de nuits, 2 lampes de chevet, 1 armoire penderie en chêne',
     items: [
       {
         id: 'salon-tv',
@@ -118,12 +129,83 @@ const inspectionSteps: InspectionStep[] = [
 ];
 
 export default function PropertyInspection() {
+  const { user } = useAuth();
+  const navigate = useNavigate();
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
   const [steps, setSteps] = useState<InspectionStep[]>(inspectionSteps);
   const [currentView, setCurrentView] = useState<'inspection' | 'summary' | 'signature'>('inspection');
+  const [photoDialogOpen, setPhotoDialogOpen] = useState(false);
+  const [selectedItem, setSelectedItem] = useState<{stepId: string, itemId: string} | null>(null);
+  const [uploadedFile, setUploadedFile] = useState<File | null>(null);
+  const [currentPhotoComment, setCurrentPhotoComment] = useState('');
+  const [inspectionId, setInspectionId] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [fullscreenImage, setFullscreenImage] = useState<string | null>(null);
+  const [fullscreenImageIndex, setFullscreenImageIndex] = useState(0);
+  const [allPhotosForFullscreen, setAllPhotosForFullscreen] = useState<string[]>([]);
+  const [isSignatureSaved, setIsSignatureSaved] = useState(false);
+  const [signingInProgress, setSigningInProgress] = useState(false);
+  const [pdfGenerating, setPdfGenerating] = useState(false);
+  const [reportId, setReportId] = useState<string | null>(null);
   const { toast } = useToast();
 
+  // Créer une nouvelle inspection au démarrage
+  useEffect(() => {
+    if (user && !inspectionId) {
+      createInspection();
+    }
+  }, [user]);
+
+  const createInspection = async () => {
+    if (!user) return;
+    
+    try {
+      // Récupérer le rôle de l'utilisateur
+      const { data: roleData } = await supabase
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', user.id)
+        .single();
+
+      const userRole = roleData?.role;
+      
+      // Préparer les données d'insertion
+      const inspectionData: any = {
+        user_id: user.id,
+        property_name: 'Appartement Airbnb',
+        status: 'in_progress'
+      };
+
+      // Si l'utilisateur est admin ou superadmin, définir admin_id
+      if (userRole === 'admin' || userRole === 'superadmin') {
+        inspectionData.admin_id = user.id;
+      }
+
+      const { data, error } = await supabase
+        .from('inspections')
+        .insert(inspectionData)
+        .select()
+        .single();
+
+      if (error) throw error;
+      setInspectionId(data.id);
+    } catch (error) {
+      console.error('Erreur lors de la création de l\'inspection:', error);
+      toast({
+        title: "Erreur",
+        description: "Impossible de créer l'inspection",
+        variant: "destructive"
+      });
+    }
+  };
+
   const updateItemStatus = (stepId: string, itemId: string, status: InspectionItem['status']) => {
+    if (status === 'issue') {
+      setSelectedItem({stepId, itemId});
+      setPhotoDialogOpen(true);
+      return;
+    }
+    
     setSteps(steps.map(step => 
       step.id === stepId ? {
         ...step,
@@ -145,11 +227,440 @@ export default function PropertyInspection() {
     ));
   };
 
-  const addUserPhoto = (stepId: string, itemId: string) => {
-    toast({
-      title: "Fonctionnalité à venir",
-      description: "L'ajout de photos sera disponible après connexion à Supabase",
-    });
+  const uploadToStorage = async (file: File, itemName: string) => {
+    if (!user) throw new Error('Utilisateur non connecté');
+    
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
+    const filePath = `${user.id}/${fileName}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from('inspection-photos')
+      .upload(filePath, file);
+
+    if (uploadError) throw uploadError;
+
+    return {
+      filePath,
+      fileName: file.name,
+      fileSize: file.size,
+      mimeType: file.type
+    };
+  };
+
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      setUploadedFile(file);
+    }
+  };
+
+  const confirmProblem = async () => {
+    if (!selectedItem || !inspectionId) return;
+    setSaving(true);
+    
+    try {
+      const currentItem = steps
+        .find(step => step.id === selectedItem.stepId)
+        ?.items.find(item => item.id === selectedItem.itemId);
+      
+      const isNewProblem = currentItem?.status !== 'issue';
+      
+      // Vérifier qu'il y a au moins une photo ou un commentaire
+      if (!uploadedFile && !currentPhotoComment.trim()) {
+        toast({
+          title: "Photo ou commentaire requis",
+          description: "Veuillez ajouter une photo ou un commentaire",
+          variant: "destructive"
+        });
+        setSaving(false);
+        return;
+      }
+
+      // Créer ou mettre à jour l'élément dans la DB
+      const { data: inspectionItem, error: itemError } = await supabase
+        .from('inspection_items')
+        .upsert({
+          inspection_id: inspectionId,
+          step_id: selectedItem.stepId,
+          item_id: selectedItem.itemId,
+          name: currentItem?.name || '',
+          status: isNewProblem ? 'issue' : currentItem?.status || 'pending',
+          comment: currentItem?.comment || ''
+        }, {
+          onConflict: 'inspection_id,step_id,item_id'
+        })
+        .select()
+        .single();
+
+      if (itemError) throw itemError;
+
+      let photoUrl = null;
+      
+      // Upload de la photo si présente
+      if (uploadedFile && inspectionItem) {
+        const photoData = await uploadToStorage(uploadedFile, currentItem?.name || 'item');
+        
+        const { error: photoError } = await supabase
+          .from('inspection_photos')
+          .insert({
+            inspection_item_id: inspectionItem.id,
+            file_path: photoData.filePath,
+            file_name: photoData.fileName,
+            file_size: photoData.fileSize,
+            mime_type: photoData.mimeType,
+            is_user_photo: true
+          });
+
+        if (photoError) throw photoError;
+
+        // Récupérer l'URL publique de la photo
+        const { data: { publicUrl } } = supabase.storage
+          .from('inspection-photos')
+          .getPublicUrl(photoData.filePath);
+        
+        photoUrl = publicUrl;
+      }
+
+      // Mettre à jour l'état local avec photo et commentaire individuels
+      setSteps(steps.map(step => 
+        step.id === selectedItem.stepId ? {
+          ...step,
+          items: step.items.map(item => 
+            item.id === selectedItem.itemId ? { 
+              ...item, 
+              status: isNewProblem ? 'issue' : (item.status || 'pending'),
+              userPhotos: [...(item.userPhotos || []), {
+                url: photoUrl || '',
+                comment: currentPhotoComment.trim()
+              }].filter(photo => photo.url || photo.comment)
+            } : item
+          )
+        } : step
+      ));
+
+      toast({
+        title: uploadedFile || currentPhotoComment ? "Ajout enregistré" : "Commentaire enregistré",
+        description: "Les informations ont été sauvegardées avec succès"
+      });
+
+      setPhotoDialogOpen(false);
+      setSelectedItem(null);
+      setUploadedFile(null);
+      setCurrentPhotoComment('');
+    } catch (error) {
+      console.error('Erreur lors de la sauvegarde:', error);
+      toast({
+        title: "Erreur",
+        description: "Impossible de sauvegarder les données",
+        variant: "destructive"
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const generatePDF = async () => {
+    if (!inspectionId || !user) return;
+    
+    setPdfGenerating(true);
+    try {
+      // Récupérer la signature du canvas
+      const canvas = document.getElementById('signature-canvas') as HTMLCanvasElement;
+      const signatureData = canvas ? canvas.toDataURL() : '';
+
+      // Créer un conteneur temporaire pour le rendu HTML
+      const tempContainer = document.createElement('div');
+      tempContainer.style.position = 'absolute';
+      tempContainer.style.top = '-9999px';
+      tempContainer.style.left = '-9999px';
+      tempContainer.style.width = '800px';
+      tempContainer.style.backgroundColor = '#f1f5f9'; // bg-muted
+      tempContainer.style.padding = '24px';
+      tempContainer.style.fontFamily = 'Arial, sans-serif';
+      document.body.appendChild(tempContainer);
+
+      // Créer le PDF
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      
+      // Page de titre
+      pdf.setFontSize(24);
+      pdf.setFont('helvetica', 'bold');
+      pdf.text('État des lieux : Félicie', pageWidth / 2, 30, { align: 'center' });
+      
+      pdf.setFontSize(12);
+      pdf.setFont('helvetica', 'normal');
+      const signatureDate = new Date().toLocaleDateString('fr-FR', {
+        weekday: 'long',
+        year: 'numeric', 
+        month: 'long', 
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+      pdf.text(`Date de signature : ${signatureDate}`, pageWidth / 2, 40, { align: 'center' });
+      pdf.text(`Créé par : ${user.email}`, pageWidth / 2, 47, { align: 'center' });
+      
+      // Générer une page pour chaque étape
+      for (let stepIndex = 0; stepIndex < steps.length; stepIndex++) {
+        const step = steps[stepIndex];
+        pdf.addPage();
+        
+        // Créer le HTML de la page d'inventaire
+        tempContainer.innerHTML = `
+          <div style="background: #f1f5f9; min-height: 100vh; font-family: Arial, sans-serif;">
+            <!-- En-tête -->
+            <div style="text-align: center; margin-bottom: 24px;">
+              <h1 style="font-size: 32px; font-weight: bold; color: #0f172a; margin-bottom: 8px;">État des lieux - Félicie</h1>
+              <p style="color: #64748b; font-size: 16px;">Vérifiez chaque élément et validez l'état du logement</p>
+            </div>
+
+            <!-- Barre de progression -->
+            <div style="background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin-bottom: 16px;">
+              <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                <span style="font-weight: 500; color: #0f172a;">Progression globale</span>
+                <span style="color: #64748b;">${Math.round((steps.reduce((acc, s) => acc + s.items.filter(i => i.status !== 'pending').length, 0) / steps.reduce((acc, s) => acc + s.items.length, 0)) * 100)}%</span>
+              </div>
+              <div style="background: #e2e8f0; border-radius: 4px; height: 8px;">
+                <div style="background: #3b82f6; height: 8px; border-radius: 4px; width: ${Math.round((steps.reduce((acc, s) => acc + s.items.filter(i => i.status !== 'pending').length, 0) / steps.reduce((acc, s) => acc + s.items.length, 0)) * 100)}%;"></div>
+              </div>
+            </div>
+
+            <!-- Navigation d'étape -->
+            <div style="background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin-bottom: 16px;">
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                  <span style="color: #64748b; font-size: 14px;">Étape ${stepIndex + 1}/${steps.length}</span>
+                  <h2 style="font-size: 24px; font-weight: 600; color: #0f172a; margin: 0;">${step.title}</h2>
+                </div>
+              </div>
+            </div>
+
+            <!-- Description de la pièce -->
+            <div style="background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin-bottom: 24px;">
+              <div style="background: white; padding: 0;">
+                <div style="color: #64748b; font-size: 14px; line-height: 1.5; min-height: 80px; padding: 12px 0;">
+                  ${step.description}
+                </div>
+              </div>
+            </div>
+
+            <!-- Éléments de l'étape -->
+            <div style="display: grid; gap: 24px;">
+              ${step.items.map(item => `
+                <div style="background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px;">
+                  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                    <h3 style="font-size: 18px; font-weight: 600; color: #0f172a; margin: 0;">${item.name}</h3>
+                    <span style="
+                      padding: 4px 12px; 
+                      border-radius: 9999px; 
+                      font-size: 12px; 
+                      font-weight: 600;
+                      ${item.status === 'ok' ? 'background: #dcfce7; color: #166534;' :
+                        item.status === 'issue' ? 'background: #fecaca; color: #991b1b;' :
+                        item.status === 'na' ? 'background: #e5e7eb; color: #374151;' :
+                        'background: #fef3c7; color: #92400e;'}
+                    ">
+                      ${item.status === 'ok' ? 'Bon état' :
+                        item.status === 'issue' ? 'Problème' :
+                        item.status === 'na' ? 'N/A' : 'À vérifier'}
+                    </span>
+                  </div>
+                  
+                  <!-- Photos originales -->
+                  <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-bottom: 16px;">
+                    ${item.photos.slice(0, 4).map(photo => `
+                      <img src="${photo}" style="width: 100%; height: 120px; object-fit: cover; border-radius: 4px;" />
+                    `).join('')}
+                  </div>
+
+                  <!-- Photos de problèmes -->
+                  ${item.userPhotos && item.userPhotos.length > 0 ? `
+                    <div style="margin-bottom: 16px;">
+                      <h4 style="font-size: 14px; font-weight: 600; color: #0f172a; margin-bottom: 8px;">
+                        📷 Photos du problème (${item.userPhotos.length})
+                      </h4>
+                      <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px;">
+                        ${item.userPhotos.map(photo => `
+                          <div style="position: relative;">
+                            ${photo.url ? `<img src="${photo.url}" style="width: 100%; height: 120px; object-fit: cover; border-radius: 4px; border: 2px solid #dc2626;" />` : ''}
+                            ${photo.comment ? `<div style="background: #fef2f2; border: 1px solid #fecaca; border-radius: 4px; padding: 8px; margin-top: 4px;">
+                              <p style="font-size: 12px; color: #991b1b; margin: 0; font-style: italic;">${photo.comment}</p>
+                            </div>` : ''}
+                          </div>
+                        `).join('')}
+                      </div>
+                    </div>
+                  ` : ''}
+
+                  <!-- Commentaire -->
+                  ${item.comment ? `
+                    <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 4px; padding: 12px;">
+                      <div style="color: #64748b; font-size: 14px; line-height: 1.5;">
+                        ${item.comment}
+                      </div>
+                    </div>
+                  ` : ''}
+                </div>
+              `).join('')}
+            </div>
+          </div>
+        `;
+
+        // Capturer la page avec html2canvas
+        const canvasElement = await html2canvas(tempContainer, {
+          width: 800,
+          height: 1200,
+          scale: 1,
+          useCORS: true,
+          allowTaint: true,
+          backgroundColor: '#f1f5f9'
+        });
+
+        // Ajouter l'image au PDF
+        const imgData = canvasElement.toDataURL('image/png');
+        const imgWidth = pageWidth - 20;
+        const imgHeight = (canvasElement.height * imgWidth) / canvasElement.width;
+        
+        // Si l'image est trop haute, la redimensionner
+        let finalHeight = imgHeight;
+        if (imgHeight > pageHeight - 20) {
+          finalHeight = pageHeight - 20;
+        }
+        
+        pdf.addImage(imgData, 'PNG', 10, 10, imgWidth, finalHeight);
+
+        // Ajouter un trait de séparation entre les pages (sauf pour la dernière)
+        if (stepIndex < steps.length - 1) {
+          pdf.setDrawColor(0, 0, 0);
+          pdf.setLineWidth(0.2);
+          pdf.line(10, pageHeight - 5, pageWidth - 10, pageHeight - 5);
+        }
+      }
+      
+      // Page de signature
+      pdf.addPage();
+      pdf.setFontSize(20);
+      pdf.setFont('helvetica', 'bold');
+      pdf.text('Signature électronique', pageWidth / 2, 30, { align: 'center' });
+      
+      if (signatureData && signatureData !== 'data:,') {
+        try {
+          pdf.addImage(signatureData, 'PNG', (pageWidth - 100) / 2, 50, 100, 50);
+        } catch (error) {
+          console.warn('Erreur lors de l\'ajout de la signature:', error);
+        }
+      }
+      
+      pdf.setFontSize(12);
+      pdf.setFont('helvetica', 'normal');
+      pdf.text(`Date de signature : ${signatureDate}`, pageWidth / 2, 120, { align: 'center' });
+      pdf.text('En signant ce document, je confirme avoir vérifié l\'état du logement', pageWidth / 2, 135, { align: 'center' });
+      pdf.text('et accepte les constats effectués.', pageWidth / 2, 142, { align: 'center' });
+
+      // Nettoyer le conteneur temporaire
+      document.body.removeChild(tempContainer);
+      
+      // Convertir le PDF en blob
+      const pdfBlob = pdf.output('blob');
+      
+      // Générer un nom de fichier unique avec timestamp pour éviter les conflits
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+      const fileName = `etat_des_lieux_felicie_${timestamp}.pdf`;
+      
+      // Stocker le PDF dans Supabase Storage avec l'option upsert pour éviter l'erreur
+      const filePath = `${user.id}/reports/${fileName}`;
+      const { error: uploadError } = await supabase.storage
+        .from('inspection-photos')
+        .upload(filePath, pdfBlob, {
+          upsert: true // Permet d'écraser le fichier s'il existe
+        });
+      
+      if (uploadError) throw uploadError;
+      
+      // Enregistrer les métadonnées du rapport dans la DB
+      const { data: report, error: reportError } = await supabase
+        .from('inspection_reports')
+        .insert({
+          inspection_id: inspectionId,
+          file_path: filePath,
+          file_name: fileName,
+          file_size: pdfBlob.size,
+          signature_data: signatureData
+        })
+        .select()
+        .single();
+      
+      if (reportError) throw reportError;
+      
+      setReportId(report.id);
+      
+      // Télécharger le PDF
+      const url = URL.createObjectURL(pdfBlob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = fileName;
+      a.click();
+      URL.revokeObjectURL(url);
+      
+      toast({
+        title: "PDF généré avec succès",
+        description: "Le rapport a été téléchargé et sauvegardé",
+      });
+      
+    } catch (error) {
+      console.error('Erreur lors de la génération du PDF:', error);
+      toast({
+        title: "Erreur",
+        description: "Impossible de générer le PDF",
+        variant: "destructive"
+      });
+    } finally {
+      setPdfGenerating(false);
+    }
+  };
+
+  const handleSignature = async () => {
+    if (!inspectionId || !user) return;
+    
+    setSigningInProgress(true);
+    try {
+      // Mettre à jour le statut de l'inspection à 'completed'
+      const { error } = await supabase
+        .from('inspections')
+        .update({ 
+          status: 'completed',
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', inspectionId);
+
+      if (error) throw error;
+
+      setIsSignatureSaved(true);
+      
+      // Générer le PDF automatiquement après la signature
+      await generatePDF();
+      
+      toast({
+        title: "Signature enregistrée",
+        description: "L'état des lieux a été finalisé avec succès",
+      });
+    } catch (error) {
+      console.error('Erreur lors de la signature:', error);
+      toast({
+        title: "Erreur",
+        description: "Impossible de sauvegarder la signature",
+        variant: "destructive"
+      });
+    } finally {
+      setSigningInProgress(false);
+    }
+  };
+
+  const handleReturnToLogin = () => {
+    navigate('/auth');
   };
 
   const getStatusIcon = (status: InspectionItem['status']) => {
@@ -187,6 +698,32 @@ export default function PropertyInspection() {
   const progressPercentage = (completedItems / totalItems) * 100;
 
   const currentStep = steps[currentStepIndex];
+
+  const validateAllItems = () => {
+    const allItems = getAllItems();
+    const pendingItems = allItems.filter(item => item.status === 'pending');
+    return pendingItems;
+  };
+
+  const scrollToFirstPendingItem = (pendingItems: InspectionItem[]) => {
+    if (pendingItems.length === 0) return;
+    
+    const firstPendingItem = pendingItems[0];
+    const stepWithPendingItem = steps.find(step => 
+      step.items.some(item => item.id === firstPendingItem.id)
+    );
+    
+    if (stepWithPendingItem) {
+      const stepIndex = steps.findIndex(step => step.id === stepWithPendingItem.id);
+      setCurrentStepIndex(stepIndex);
+      
+      toast({
+        title: "Validation incomplète",
+        description: `Veuillez valider l'élément "${firstPendingItem.name}" dans la section "${stepWithPendingItem.title}"`,
+        variant: "destructive"
+      });
+    }
+  };
 
   const nextStep = () => {
     if (currentStepIndex < steps.length - 1) {
@@ -234,6 +771,34 @@ export default function PropertyInspection() {
                             </p>
                           </div>
                         )}
+                 {item.userPhotos && item.userPhotos.length > 0 && (
+                           <div className="space-y-3">
+                             <p className="text-sm font-medium text-card-foreground">Photos et commentaires du problème :</p>
+                             <div className="grid grid-cols-2 gap-3">
+                                {item.userPhotos.map((photo, photoIndex) => (
+                                  <div key={photoIndex} className="border border-destructive/20 rounded-lg p-3 bg-destructive/5">
+                                    {photo.url && (
+                                      <img 
+                                        src={photo.url} 
+                                        alt={`Problème ${item.name} - Photo ${photoIndex + 1}`}
+                                        className="w-full h-32 object-cover rounded-lg border-2 border-destructive cursor-pointer hover:opacity-80 transition-opacity mb-2"
+                                        onClick={() => {
+                                          const allPhotos = [...item.photos, ...(item.userPhotos?.map(p => p.url).filter(Boolean) || [])];
+                                          const photoIndex = allPhotos.indexOf(photo.url);
+                                          setAllPhotosForFullscreen(allPhotos);
+                                          setFullscreenImageIndex(photoIndex);
+                                          setFullscreenImage(photo.url);
+                                        }}
+                                      />
+                                    )}
+                                    {photo.comment && (
+                                      <p className="text-sm text-card-foreground italic">"{photo.comment}"</p>
+                                    )}
+                                  </div>
+                                ))}
+                             </div>
+                           </div>
+                         )}
                       </div>
                     </div>
                   </div>
@@ -247,7 +812,15 @@ export default function PropertyInspection() {
           <Button variant="outline" onClick={() => setCurrentView('inspection')}>
             Retour à l'inspection
           </Button>
-          <Button onClick={() => setCurrentView('signature')} className="bg-primary text-primary-foreground">
+          <Button onClick={() => {
+            const pendingItems = validateAllItems();
+            if (pendingItems.length > 0) {
+              scrollToFirstPendingItem(pendingItems);
+              setCurrentView('inspection');
+              return;
+            }
+            setCurrentView('signature');
+          }} className="bg-primary text-primary-foreground">
             Procéder à la signature
           </Button>
         </div>
@@ -265,12 +838,103 @@ export default function PropertyInspection() {
 
         <Card>
           <CardContent className="p-6 space-y-4">
-            <div className="h-48 border-2 border-dashed border-border rounded-lg flex items-center justify-center bg-muted/20">
-              <div className="text-center text-muted-foreground">
-                <MessageSquare className="h-12 w-12 mx-auto mb-2" />
-                <p>Zone de signature</p>
-                <p className="text-sm">(Fonctionnalité disponible après connexion Supabase)</p>
+            <div className="relative">
+              <canvas
+                id="signature-canvas"
+                width="400"
+                height="200"
+                className="w-full h-48 border-2 border-dashed border-border rounded-lg bg-muted/20 cursor-crosshair touch-none"
+                onMouseDown={(e) => {
+                  const canvas = e.currentTarget;
+                  const ctx = canvas.getContext('2d');
+                  if (!ctx) return;
+                  
+                  const rect = canvas.getBoundingClientRect();
+                  const x = (e.clientX - rect.left) * (canvas.width / rect.width);
+                  const y = (e.clientY - rect.top) * (canvas.height / rect.height);
+                  
+                  ctx.beginPath();
+                  ctx.moveTo(x, y);
+                  canvas.setAttribute('data-drawing', 'true');
+                }}
+                onMouseMove={(e) => {
+                  const canvas = e.currentTarget;
+                  const ctx = canvas.getContext('2d');
+                  if (!ctx || canvas.getAttribute('data-drawing') !== 'true') return;
+                  
+                  const rect = canvas.getBoundingClientRect();
+                  const x = (e.clientX - rect.left) * (canvas.width / rect.width);
+                  const y = (e.clientY - rect.top) * (canvas.height / rect.height);
+                  
+                  ctx.lineWidth = 2;
+                  ctx.lineCap = 'round';
+                  ctx.strokeStyle = '#000';
+                  ctx.lineTo(x, y);
+                  ctx.stroke();
+                }}
+                onMouseUp={(e) => {
+                  const canvas = e.currentTarget;
+                  canvas.removeAttribute('data-drawing');
+                }}
+                onTouchStart={(e) => {
+                  e.preventDefault();
+                  const canvas = e.currentTarget;
+                  const ctx = canvas.getContext('2d');
+                  if (!ctx) return;
+                  
+                  const rect = canvas.getBoundingClientRect();
+                  const touch = e.touches[0];
+                  const x = (touch.clientX - rect.left) * (canvas.width / rect.width);
+                  const y = (touch.clientY - rect.top) * (canvas.height / rect.height);
+                  
+                  ctx.beginPath();
+                  ctx.moveTo(x, y);
+                  canvas.setAttribute('data-drawing', 'true');
+                }}
+                onTouchMove={(e) => {
+                  e.preventDefault();
+                  const canvas = e.currentTarget;
+                  const ctx = canvas.getContext('2d');
+                  if (!ctx || canvas.getAttribute('data-drawing') !== 'true') return;
+                  
+                  const rect = canvas.getBoundingClientRect();
+                  const touch = e.touches[0];
+                  const x = (touch.clientX - rect.left) * (canvas.width / rect.width);
+                  const y = (touch.clientY - rect.top) * (canvas.height / rect.height);
+                  
+                  ctx.lineWidth = 2;
+                  ctx.lineCap = 'round';
+                  ctx.strokeStyle = '#000';
+                  ctx.lineTo(x, y);
+                  ctx.stroke();
+                }}
+                onTouchEnd={(e) => {
+                  e.preventDefault();
+                  const canvas = e.currentTarget;
+                  canvas.removeAttribute('data-drawing');
+                }}
+              />
+              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                <div className="text-center text-muted-foreground">
+                  <p className="text-sm">Zone de signature - Dessinez votre signature</p>
+                </div>
               </div>
+              <Button
+                variant="outline"
+                size="sm"
+                className="absolute top-2 right-2"
+                onClick={() => {
+                  const canvas = document.getElementById('signature-canvas') as HTMLCanvasElement;
+                  if (canvas) {
+                    const ctx = canvas.getContext('2d');
+                    if (ctx) {
+                      ctx.clearRect(0, 0, canvas.width, canvas.height);
+                    }
+                  }
+                }}
+              >
+                Effacer
+              </Button>
             </div>
             
             <div className="text-sm text-muted-foreground space-y-2">
@@ -278,14 +942,36 @@ export default function PropertyInspection() {
               <p>Date: {new Date().toLocaleDateString('fr-FR')}</p>
             </div>
 
-            <Button className="w-full bg-primary text-primary-foreground" onClick={() => {
-              toast({
-                title: "Signature enregistrée",
-                description: "L'état des lieux a été finalisé avec succès",
-              });
-            }}>
-              Signer et finaliser
+            <Button 
+              className="w-full bg-primary text-primary-foreground" 
+              onClick={handleSignature}
+              disabled={signingInProgress || pdfGenerating}
+            >
+              {signingInProgress ? "Signature en cours..." : pdfGenerating ? "Génération du PDF..." : "Signer et finaliser"}
             </Button>
+            
+            {isSignatureSaved && (
+              <div className="space-y-2">
+                {reportId && (
+                  <Button 
+                    className="w-full" 
+                    variant="outline"
+                    onClick={generatePDF}
+                    disabled={pdfGenerating}
+                  >
+                    <Download className="h-4 w-4 mr-2" />
+                    {pdfGenerating ? "Génération..." : "Télécharger le PDF"}
+                  </Button>
+                )}
+                <Button 
+                  className="w-full" 
+                  variant="outline"
+                  onClick={handleReturnToLogin}
+                >
+                  Retour à la page de connexion
+                </Button>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -295,54 +981,70 @@ export default function PropertyInspection() {
   return (
     <div className="max-w-4xl mx-auto p-6 space-y-6">
       <div className="text-center space-y-2">
-        <h1 className="text-3xl font-bold text-foreground">État des lieux - Airbnb</h1>
+        <h1 className="text-3xl font-bold text-foreground">Etat des lieux - Félicie</h1>
         <p className="text-muted-foreground">Vérifiez chaque élément et validez l'état du logement</p>
       </div>
 
-      {/* Progress Bar */}
-      <Card>
-        <CardContent className="p-4">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-sm font-medium text-card-foreground">Progression globale</span>
-            <span className="text-sm text-muted-foreground">{completedItems}/{totalItems}</span>
-          </div>
-          <div className="w-full bg-muted rounded-full h-2">
-            <div 
-              className="bg-primary h-2 rounded-full transition-all duration-300"
-              style={{ width: `${progressPercentage}%` }}
-            />
-          </div>
-        </CardContent>
-      </Card>
+      {/* Progress Bar - Fixed */}
+      <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-sm pb-4">
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm font-medium text-card-foreground">Progression globale</span>
+              <span className="text-sm text-muted-foreground">{completedItems}/{totalItems}</span>
+            </div>
+            <div className="w-full bg-muted rounded-full h-2">
+              <div 
+                className="bg-primary h-2 rounded-full transition-all duration-300"
+                style={{ width: `${progressPercentage}%` }}
+              />
+            </div>
+          </CardContent>
+        </Card>
 
-      {/* Step Navigation */}
-      <Card>
+        {/* Step Navigation - Integrated */}
+        <Card className="mt-4">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 sm:gap-4 min-w-0 flex-1">
+                <span className="text-xs sm:text-sm text-muted-foreground whitespace-nowrap">Étape {currentStepIndex + 1}/{steps.length}</span>
+                <h2 className="text-sm sm:text-lg md:text-xl font-semibold text-card-foreground truncate">{currentStep.title}</h2>
+              </div>
+              <div className="flex gap-1 sm:gap-2 flex-shrink-0">
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  className="px-2 sm:px-4 text-xs sm:text-sm"
+                  onClick={prevStep}
+                  disabled={currentStepIndex === 0}
+                >
+                  <ChevronLeft className="h-3 w-3 sm:h-4 sm:w-4" />
+                  <span className="hidden sm:inline">Précédent</span>
+                </Button>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  className="px-2 sm:px-4 text-xs sm:text-sm"
+                  onClick={nextStep}
+                >
+                  <span className="hidden sm:inline">{currentStepIndex === steps.length - 1 ? 'Terminer' : 'Suivant'}</span>
+                  <span className="sm:hidden">{currentStepIndex === steps.length - 1 ? 'Fin' : ''}</span>
+                  <ChevronRight className="h-3 w-3 sm:h-4 sm:w-4" />
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Description de la pièce */}
+      <Card className="bg-background border-border">
         <CardContent className="p-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <span className="text-sm text-muted-foreground">Étape {currentStepIndex + 1} sur {steps.length}</span>
-              <h2 className="text-xl font-semibold text-card-foreground">{currentStep.title}</h2>
-            </div>
-            <div className="flex gap-2">
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={prevStep}
-                disabled={currentStepIndex === 0}
-              >
-                <ChevronLeft className="h-4 w-4" />
-                Précédent
-              </Button>
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={nextStep}
-              >
-                {currentStepIndex === steps.length - 1 ? 'Terminer' : 'Suivant'}
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-            </div>
-          </div>
+          <Textarea
+            value={currentStep.description}
+            readOnly
+            className="min-h-[80px] resize-none bg-background border-0 shadow-none p-0 text-muted-foreground"
+          />
         </CardContent>
       </Card>
 
@@ -359,20 +1061,83 @@ export default function PropertyInspection() {
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
-              {/* Photos par défaut */}
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                {item.photos.map((photo, index) => (
-                  <div key={index} className="relative">
-                    <img 
-                      src={photo} 
-                      alt={`${item.name} - Photo ${index + 1}`}
-                      className="w-full h-32 object-cover rounded-lg border border-border"
-                    />
-                  </div>
-                ))}
-              </div>
+      {/* Photos par défaut */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                 {item.photos.map((photo, index) => (
+                   <div key={index} className="relative">
+                      <img 
+                        src={photo} 
+                        alt={`${item.name} - Photo ${index + 1}`}
+                        width="188"
+                        height="128"
+                        loading="lazy"
+                        decoding="async"
+                        className="w-full h-32 sm:h-32 aspect-square sm:aspect-auto object-cover rounded-lg border border-border cursor-pointer hover:opacity-80 transition-opacity"
+                         onClick={() => {
+                           const allPhotos = [...item.photos, ...(item.userPhotos?.map(p => p.url).filter(Boolean) || [])];
+                           const photoIndex = allPhotos.indexOf(photo);
+                           setAllPhotosForFullscreen(allPhotos);
+                           setFullscreenImageIndex(photoIndex);
+                           setFullscreenImage(photo);
+                         }}
+                       />
+                   </div>
+                 ))}
+               </div>
 
-              {/* Status Buttons */}
+               {/* Affichage des commentaires et photos utilisateur pour les problèmes */}
+               {item.status === 'issue' && (item.comment || (item.userPhotos && item.userPhotos.length > 0)) && (
+                 <div className="mt-4 space-y-3 border-t border-destructive/20 pt-3">
+                   {item.comment && (
+                     <div className="bg-destructive/5 p-3 rounded-lg border border-destructive/20">
+                       <div className="flex items-start gap-2">
+                         <MessageSquare className="h-4 w-4 text-destructive mt-0.5 flex-shrink-0" />
+                         <div>
+                           <p className="text-sm font-medium text-destructive mb-1">Problème signalé :</p>
+                           <p className="text-sm text-card-foreground">{item.comment}</p>
+                         </div>
+                       </div>
+                     </div>
+                   )}
+                    {item.userPhotos && item.userPhotos.length > 0 && (
+                      <div className="space-y-3">
+                        <p className="text-sm font-medium text-destructive flex items-center gap-1">
+                          <Camera className="h-4 w-4" />
+                          Photos et commentaires du problème :
+                        </p>
+                           <div className="grid grid-cols-2 gap-3">
+                            {item.userPhotos.map((photo, photoIndex) => (
+                              <div key={photoIndex} className="border border-destructive/20 rounded-lg p-2 bg-destructive/5">
+                                {photo.url && (
+                                  <img 
+                                    src={photo.url} 
+                                    alt={`Problème ${item.name} - Photo ${photoIndex + 1}`}
+                                    width="188"
+                                    height="128"
+                                    loading="lazy"
+                                    decoding="async"
+                                    className="w-full h-32 sm:h-32 aspect-square sm:aspect-auto object-cover rounded-lg border-2 border-destructive cursor-pointer hover:opacity-80 transition-opacity mb-2"
+                                     onClick={() => {
+                                       const allPhotos = [...item.photos, ...(item.userPhotos?.map(p => p.url).filter(Boolean) || [])];
+                                       const photoIndex = allPhotos.indexOf(photo.url);
+                                       setAllPhotosForFullscreen(allPhotos);
+                                       setFullscreenImageIndex(photoIndex);
+                                       setFullscreenImage(photo.url);
+                                     }}
+                                   />
+                                )}
+                                {photo.comment && (
+                                  <p className="text-xs text-card-foreground italic">"{photo.comment}"</p>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                      </div>
+                    )}
+                 </div>
+               )}
+
+               {/* Status Buttons */}
               <div className="flex gap-2">
                 <Button
                   variant={item.status === 'ok' ? 'default' : 'outline'}
@@ -411,20 +1176,155 @@ export default function PropertyInspection() {
                   onChange={(e) => updateItemComment(currentStep.id, item.id, e.target.value)}
                   className="min-h-[80px] resize-none"
                 />
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => addUserPhoto(currentStep.id, item.id)}
-                  className="w-full"
-                >
-                  <Camera className="h-4 w-4 mr-2" />
-                  Ajouter une photo
-                </Button>
               </div>
             </CardContent>
           </Card>
         ))}
       </div>
+
+      {/* Dialog pour signaler un problème */}
+      <Dialog open={photoDialogOpen} onOpenChange={setPhotoDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              {steps.find(step => step.id === selectedItem?.stepId)
+                ?.items.find(item => item.id === selectedItem?.itemId)?.status === 'issue' 
+                ? "Ajouter une photo au problème" 
+                : "Ajouter une photo ou signaler un problème"}
+            </DialogTitle>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium mb-2">
+                Ajouter une photo
+              </label>
+              <div className="border-2 border-dashed border-border rounded-lg p-6 text-center">
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleFileChange}
+                  className="hidden"
+                  id="photo-upload"
+                />
+                <label
+                  htmlFor="photo-upload"
+                  className="cursor-pointer flex flex-col items-center space-y-2"
+                >
+                  <Upload className="h-8 w-8 text-muted-foreground" />
+                  <span className="text-sm text-muted-foreground">
+                    {uploadedFile ? uploadedFile.name : "Cliquez pour ajouter une photo"}
+                  </span>
+                </label>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-2">
+                Commentaire pour cette photo
+              </label>
+              <Textarea
+                placeholder="Décrivez le problème observé sur cette photo..."
+                value={currentPhotoComment}
+                onChange={(e) => setCurrentPhotoComment(e.target.value)}
+                className="min-h-[100px]"
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                setPhotoDialogOpen(false);
+                setSelectedItem(null);
+                setUploadedFile(null);
+                setCurrentPhotoComment('');
+              }}
+            >
+              Annuler
+            </Button>
+            <Button 
+              onClick={confirmProblem}
+              disabled={saving || (!uploadedFile && !currentPhotoComment.trim())}
+            >
+              {saving ? "Sauvegarde..." : "Ajouter"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Fullscreen Image Dialog */}
+      <Dialog open={!!fullscreenImage} onOpenChange={() => setFullscreenImage(null)}>
+        <DialogContent className="max-w-4xl w-full h-[90vh] p-0 bg-black/95">
+          <div className="relative w-full h-full flex items-center justify-center">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="absolute top-4 right-4 z-20 text-white hover:bg-white/20 h-24 w-24"
+              onClick={() => setFullscreenImage(null)}
+            >
+              <X className="h-16 w-16" />
+            </Button>
+            
+            {/* Navigation arrows - zone étendue jusqu'aux bords */}
+            {allPhotosForFullscreen.length > 1 && fullscreenImage && (
+              <>
+                {/* Zone cliquable à gauche - étendue jusqu'au bord gauche */}
+                <div
+                  className="absolute left-0 top-0 w-1/2 h-full z-10 flex items-center justify-start pl-8 cursor-pointer"
+                  onClick={() => {
+                    const prevIndex = fullscreenImageIndex > 0 ? fullscreenImageIndex - 1 : allPhotosForFullscreen.length - 1;
+                    setFullscreenImageIndex(prevIndex);
+                    setFullscreenImage(allPhotosForFullscreen[prevIndex]);
+                  }}
+                >
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="text-white hover:bg-white/20 pointer-events-none h-16 w-16"
+                  >
+                    <ChevronLeft className="h-16 w-16" />
+                  </Button>
+                </div>
+                
+                {/* Zone cliquable à droite - étendue jusqu'au bord droit */}
+                <div
+                  className="absolute right-0 top-0 w-1/2 h-full z-10 flex items-center justify-end pr-8 cursor-pointer"
+                  onClick={() => {
+                    const nextIndex = fullscreenImageIndex < allPhotosForFullscreen.length - 1 ? fullscreenImageIndex + 1 : 0;
+                    setFullscreenImageIndex(nextIndex);
+                    setFullscreenImage(allPhotosForFullscreen[nextIndex]);
+                  }}
+                >
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="text-white hover:bg-white/20 pointer-events-none h-16 w-16"
+                  >
+                    <ChevronRight className="h-16 w-16" />
+                  </Button>
+                </div>
+              </>
+            )}
+            
+            {fullscreenImage && (
+              <img
+                src={fullscreenImage}
+                alt="Image en plein écran"
+                className="max-w-full max-h-full object-contain"
+              />
+            )}
+            
+            {/* Photo counter */}
+            {allPhotosForFullscreen.length > 1 && (
+              <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-black/60 text-white px-3 py-1 rounded-full text-sm">
+                {fullscreenImageIndex + 1} / {allPhotosForFullscreen.length}
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
