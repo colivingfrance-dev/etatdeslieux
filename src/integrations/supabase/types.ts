@@ -14,16 +14,460 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      admin_profiles: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          max_locations: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          max_locations?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          max_locations?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      edl_etapes: {
+        Row: {
+          commentaire: string | null
+          created_at: string
+          id: string
+          modele_id: string
+          nom: string
+          ordre: number
+          updated_at: string
+        }
+        Insert: {
+          commentaire?: string | null
+          created_at?: string
+          id?: string
+          modele_id: string
+          nom: string
+          ordre?: number
+          updated_at?: string
+        }
+        Update: {
+          commentaire?: string | null
+          created_at?: string
+          id?: string
+          modele_id?: string
+          nom?: string
+          ordre?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "edl_etapes_modele_id_fkey"
+            columns: ["modele_id"]
+            isOneToOne: false
+            referencedRelation: "modele_etats_des_lieux"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      edl_photos: {
+        Row: {
+          commentaire: string | null
+          created_at: string
+          file_name: string
+          file_path: string
+          id: string
+          piece_id: string
+        }
+        Insert: {
+          commentaire?: string | null
+          created_at?: string
+          file_name: string
+          file_path: string
+          id?: string
+          piece_id: string
+        }
+        Update: {
+          commentaire?: string | null
+          created_at?: string
+          file_name?: string
+          file_path?: string
+          id?: string
+          piece_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "edl_photos_piece_id_fkey"
+            columns: ["piece_id"]
+            isOneToOne: false
+            referencedRelation: "edl_pieces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      edl_pieces: {
+        Row: {
+          commentaire: string | null
+          created_at: string
+          etape_id: string
+          id: string
+          nom: string
+          updated_at: string
+        }
+        Insert: {
+          commentaire?: string | null
+          created_at?: string
+          etape_id: string
+          id?: string
+          nom: string
+          updated_at?: string
+        }
+        Update: {
+          commentaire?: string | null
+          created_at?: string
+          etape_id?: string
+          id?: string
+          nom?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "edl_pieces_etape_id_fkey"
+            columns: ["etape_id"]
+            isOneToOne: false
+            referencedRelation: "edl_etapes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      inspection_items: {
+        Row: {
+          comment: string | null
+          created_at: string
+          id: string
+          inspection_id: string
+          item_id: string
+          name: string
+          status: string
+          step_id: string
+          updated_at: string
+        }
+        Insert: {
+          comment?: string | null
+          created_at?: string
+          id?: string
+          inspection_id: string
+          item_id: string
+          name: string
+          status?: string
+          step_id: string
+          updated_at?: string
+        }
+        Update: {
+          comment?: string | null
+          created_at?: string
+          id?: string
+          inspection_id?: string
+          item_id?: string
+          name?: string
+          status?: string
+          step_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "inspection_items_inspection_id_fkey"
+            columns: ["inspection_id"]
+            isOneToOne: false
+            referencedRelation: "inspections"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      inspection_photos: {
+        Row: {
+          created_at: string
+          file_name: string
+          file_path: string
+          file_size: number | null
+          id: string
+          inspection_item_id: string
+          is_user_photo: boolean
+          mime_type: string | null
+        }
+        Insert: {
+          created_at?: string
+          file_name: string
+          file_path: string
+          file_size?: number | null
+          id?: string
+          inspection_item_id: string
+          is_user_photo?: boolean
+          mime_type?: string | null
+        }
+        Update: {
+          created_at?: string
+          file_name?: string
+          file_path?: string
+          file_size?: number | null
+          id?: string
+          inspection_item_id?: string
+          is_user_photo?: boolean
+          mime_type?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "inspection_photos_inspection_item_id_fkey"
+            columns: ["inspection_item_id"]
+            isOneToOne: false
+            referencedRelation: "inspection_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      inspection_reports: {
+        Row: {
+          created_at: string
+          file_name: string
+          file_path: string
+          file_size: number | null
+          id: string
+          inspection_id: string
+          signature_data: string | null
+        }
+        Insert: {
+          created_at?: string
+          file_name: string
+          file_path: string
+          file_size?: number | null
+          id?: string
+          inspection_id: string
+          signature_data?: string | null
+        }
+        Update: {
+          created_at?: string
+          file_name?: string
+          file_path?: string
+          file_size?: number | null
+          id?: string
+          inspection_id?: string
+          signature_data?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "inspection_reports_inspection_id_fkey"
+            columns: ["inspection_id"]
+            isOneToOne: false
+            referencedRelation: "inspections"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      inspections: {
+        Row: {
+          admin_id: string | null
+          created_at: string
+          id: string
+          inspection_date: string
+          property_name: string
+          status: string
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          admin_id?: string | null
+          created_at?: string
+          id?: string
+          inspection_date?: string
+          property_name: string
+          status?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          admin_id?: string | null
+          created_at?: string
+          id?: string
+          inspection_date?: string
+          property_name?: string
+          status?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      locataires: {
+        Row: {
+          adresse_cp: string | null
+          adresse_pays: string | null
+          adresse_rue: string | null
+          adresse_ville: string | null
+          bail_path: string | null
+          caution_path: string | null
+          created_at: string
+          created_by: string
+          date_entree: string | null
+          date_naissance: string | null
+          date_sortie: string | null
+          email: string | null
+          etat_des_lieux_path: string | null
+          etat_des_lieux_sortie_path: string | null
+          id: number
+          id_locataire: string
+          identite_path: string | null
+          lieu_naissance: string | null
+          nom: string
+          nom_batiment: string | null
+          nom_logement: string | null
+          prenom: string
+          reglement_path: string | null
+          tel: string | null
+          updated_at: string
+        }
+        Insert: {
+          adresse_cp?: string | null
+          adresse_pays?: string | null
+          adresse_rue?: string | null
+          adresse_ville?: string | null
+          bail_path?: string | null
+          caution_path?: string | null
+          created_at?: string
+          created_by: string
+          date_entree?: string | null
+          date_naissance?: string | null
+          date_sortie?: string | null
+          email?: string | null
+          etat_des_lieux_path?: string | null
+          etat_des_lieux_sortie_path?: string | null
+          id?: number
+          id_locataire: string
+          identite_path?: string | null
+          lieu_naissance?: string | null
+          nom: string
+          nom_batiment?: string | null
+          nom_logement?: string | null
+          prenom: string
+          reglement_path?: string | null
+          tel?: string | null
+          updated_at?: string
+        }
+        Update: {
+          adresse_cp?: string | null
+          adresse_pays?: string | null
+          adresse_rue?: string | null
+          adresse_ville?: string | null
+          bail_path?: string | null
+          caution_path?: string | null
+          created_at?: string
+          created_by?: string
+          date_entree?: string | null
+          date_naissance?: string | null
+          date_sortie?: string | null
+          email?: string | null
+          etat_des_lieux_path?: string | null
+          etat_des_lieux_sortie_path?: string | null
+          id?: number
+          id_locataire?: string
+          identite_path?: string | null
+          lieu_naissance?: string | null
+          nom?: string
+          nom_batiment?: string | null
+          nom_logement?: string | null
+          prenom?: string
+          reglement_path?: string | null
+          tel?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      modele_etats_des_lieux: {
+        Row: {
+          created_at: string
+          created_by: string
+          description: string | null
+          id: string
+          nom: string
+          property_name: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          description?: string | null
+          id?: string
+          nom: string
+          property_name: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          id?: string
+          nom?: string
+          property_name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      user_roles: {
+        Row: {
+          created_at: string
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      count_admin_locations: { Args: { _admin_id: string }; Returns: number }
+      get_user_role: {
+        Args: { _user_id: string }
+        Returns: Database["public"]["Enums"]["app_role"]
+      }
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
+      setup_user_with_role: {
+        Args: {
+          p_max_locations?: number
+          p_role: Database["public"]["Enums"]["app_role"]
+          p_user_id: string
+        }
+        Returns: undefined
+      }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "superadmin" | "admin" | "client"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +594,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["superadmin", "admin", "client"],
+    },
   },
 } as const
